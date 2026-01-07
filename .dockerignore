@@ -1,0 +1,8 @@
+# .dockerignore
+.git
+.vscode
+.idea
+bin/
+tmp/
+deploy/
+*.md
