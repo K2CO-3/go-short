@@ -8,6 +8,7 @@ import (
 
 	"go-short/internal/repository/impl/postgresql"
 	"go-short/internal/repository/impl/redis"
+	"go-short/internal/service"
 
 	"github.com/gin-gonic/gin"
 	redisclient "github.com/redis/go-redis/v9"
@@ -30,12 +31,17 @@ func main() {
 
 	// 2. 初始化 Repository
 	linkRepo := postgresql.NewLinkRepository(db)
+	userRepo := postgresql.NewUserRepository(db)
+	accessLogRepo := postgresql.NewAccessLogRepository(db)
 	redisRepo := redis.NewRedisRepository(rdb)
 
-	// 3. 初始化 Gin 引擎
+	// 3. 初始化 Service
+	linkService := service.NewLinkService(db, linkRepo, userRepo, accessLogRepo)
+
+	// 4. 初始化 Gin 引擎
 	r := gin.Default()
 
-	// 4. 核心跳转路由
+	// 5. 核心跳转路由
 	r.GET("/code/:code", func(c *gin.Context) {
 		code := c.Param("code")
 		if code == "" {
@@ -49,36 +55,34 @@ func main() {
 		// Step 1: 查 Redis 缓存
 		cachedURL, err := redisRepo.GetLinkFromCache(ctx, code)
 		if err == redisclient.Nil {
-			// 缓存未命中
-			longURL = cachedURL
-		} else if err != nil {
-			// Redis 错误
-			c.String(500, "Redis error")
-			return
-		} else {
-			// Step 2: 缓存未命中，查数据库 (回源)
-			link, dbErr := linkRepo.GetLinkByCode(ctx, nil, code)
+			// 缓存未命中，查数据库 (回源)
+			link, dbErr := linkService.GetLinkByCodeForRedirect(ctx, code)
 			if dbErr != nil {
 				c.String(404, "Link not found or expired")
 				return
 			}
 
-			// 检查链接是否过期
-			if link.ExpiresAt != nil && link.ExpiresAt.Before(time.Now()) {
-				c.String(404, "Link expired")
-				return
-			}
-
 			longURL = link.OriginalURL
 
-			// Step 3: 回写 Redis 缓存 (设置1小时过期)
+			// Step 2: 回写 Redis 缓存 (设置1小时过期)
 			redisRepo.CacheLink(ctx, code, longURL, time.Hour)
+		} else if err != nil {
+			// Redis 错误，降级到数据库查询
+			link, dbErr := linkService.GetLinkByCodeForRedirect(ctx, code)
+			if dbErr != nil {
+				c.String(404, "Link not found or expired")
+				return
+			}
+			longURL = link.OriginalURL
+		} else {
+			// 缓存命中
+			longURL = cachedURL
 		}
 
-		// Step 4: 【异步】发送访问日志到 Redis 队列
+		// Step 3: 【异步】发送访问日志到 Redis 队列
 		// 使用 go 协程，不阻塞 HTTP 跳转
 		go func(code, ip, ua string) {
-			logData := map[string]interface{}{
+			logData := map[string]any{
 				"code": code,
 				"ip":   ip,
 				"ua":   ua,
@@ -93,7 +97,7 @@ func main() {
 			rdb.Incr(ctx, "stats:visits:"+code)
 		}(code, c.ClientIP(), c.Request.UserAgent())
 
-		// Step 5: 302 重定向
+		// Step 4: 302 重定向
 		c.Redirect(http.StatusFound, longURL)
 	})
 
