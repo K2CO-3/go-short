@@ -1,0 +1,29 @@
+# Stage 1: Build
+FROM golang:1.25.5-alpine3.21 AS builder
+
+ENV GO111MODULE=on \
+    CGO_ENABLED=0 \
+    GOOS=linux \
+    GOARCH=amd64
+
+WORKDIR /build
+
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY . .
+# 编译 Worker
+RUN go build -o worker-server ./cmd/worker
+
+# Stage 2: Runtime
+FROM alpine:3.21
+
+RUN apk --no-cache add ca-certificates tzdata
+
+WORKDIR /app
+
+COPY --from=builder /build/worker-server .
+
+# Worker 是后台消费者，不需要 EXPOSE 端口
+
+CMD ["./worker-server"]

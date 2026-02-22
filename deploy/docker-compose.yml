@@ -1,0 +1,102 @@
+
+services:
+  # ----------------------------
+  # 基础设施层 (Database & Cache)
+  # ----------------------------
+  postgres:
+    image: postgres:15-alpine
+    container_name: goshort-db
+    restart: always
+    environment:
+      POSTGRES_USER: cmh
+      POSTGRES_PASSWORD: 123456
+      POSTGRES_DB: goshort
+    ports:
+      - "5432:5432" # 暴露给宿主机的数据库工具连接用
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    networks:
+      - goshort-net
+
+  redis:
+    image: redis:alpine
+    container_name: goshort-redis
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - goshort-net
+
+  # ----------------------------
+  # 应用服务层 (Microservices)
+  # ----------------------------
+  
+  # 1. 跳转服务 (核心读服务) - 模拟 80 端口
+  redirect-service:
+    build:
+      context: ..            # 上下文是项目根目录
+      dockerfile: deploy/Dockerfile.redirect
+    container_name: goshort-redirect
+    restart: always
+    depends_on:
+      - postgres
+      - redis
+    ports:
+      - "80:8080"            # 宿主机 80 -> 容器 8080
+    environment:
+      - APP_ENV=production
+      - DB_DSN=host=postgres user=cmh password=123456 dbname=goshort port=5432 sslmode=disable
+      - REDIS_ADDR=redis:6379
+      - REDIS_PASSWORD=
+    networks:
+      - goshort-net
+
+  # 2. API 服务 (管理后台) - 模拟 8081 端口
+  api-service:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.api
+    container_name: goshort-api
+    restart: always
+    depends_on:
+      - postgres
+      - redis
+    ports:
+      - "8081:8080"          # 宿主机 8081 -> 容器 8080
+    environment:
+      - APP_ENV=production
+      - DB_DSN=host=postgres user=cmh password=123456 dbname=goshort port=5432 sslmode=disable
+      - REDIS_ADDR=redis:6379
+      - JWT_SECRET=youwillneverknow
+      - BASE_URL=http://localhost:8080
+    networks:
+      - goshort-net
+
+  # 3. Worker 服务 (异步处理) - 无端口
+  worker-service:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.worker
+    container_name: goshort-worker
+    restart: always
+    depends_on:
+      - postgres
+      - redis
+    environment:
+      - APP_ENV=production
+      - DB_DSN=host=postgres user=cmh password=123456 dbname=goshort port=5432 sslmode=disable
+      - REDIS_ADDR=redis:6379
+    networks:
+      - goshort-net
+
+# 定义持久化卷
+volumes:
+  pg_data:
+  redis_data:
+
+# 定义内部网络
+networks:
+  goshort-net:
+    driver: bridge

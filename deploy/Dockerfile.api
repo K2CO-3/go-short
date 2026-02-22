@@ -1,0 +1,38 @@
+# Stage 1: Build
+FROM golang:1.25.5-alpine3.21 AS builder
+
+# 设置环境变量，开启 Go Modules，禁用 CGO (保证静态链接)
+ENV GO111MODULE=on \
+    CGO_ENABLED=0 \
+    GOOS=linux \
+    GOARCH=amd64
+
+WORKDIR /build
+
+# 1. 预下载依赖 (利用 Docker 缓存层)
+COPY go.mod go.sum ./
+RUN go mod download
+
+# 2. 复制代码并编译
+COPY . .
+# 编译 API Server
+RUN go build -o api-server ./cmd/api-server
+
+# Stage 2: Runtime
+FROM alpine:3.21
+
+# 安装基础证书 (防止访问 HTTPS 报错) 和时区数据
+RUN apk --no-cache add ca-certificates tzdata
+
+WORKDIR /app
+
+# 从编译阶段复制二进制文件
+COPY --from=builder /build/api-server .
+# 如果你有配置文件 config.yaml，也可以在这里 COPY
+# COPY --from=builder /build/configs ./configs
+
+# 暴露端口 (容器内部端口)
+EXPOSE 8080
+
+# 启动命令
+CMD ["./api-server"]
