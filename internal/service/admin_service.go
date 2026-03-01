@@ -108,3 +108,8 @@ func (s *AdminService) ActiveLink(ctx context.Context, linkID int64) error {
 func (s *AdminService) UnactiveLink(ctx context.Context, linkID int64) error {
 	return s.linkRepository.UnactiveLink(ctx, s.db, linkID)
 }
+
+// GetRecentAccessLogs 获取最近 N 条访问日志
+func (s *AdminService) GetRecentAccessLogs(ctx context.Context, limit int) ([]model.AccessLog, error) {
+	return s.accessLogRepository.GetRecentAccessLogs(ctx, s.db, limit)
+}

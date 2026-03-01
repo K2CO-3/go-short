@@ -4,9 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"log"
+	"os"
+	"strconv"
 	"time"
 
 	"go-short/internal/model"
+	"go-short/internal/repository"
 	"go-short/internal/repository/impl/postgresql"
 	"go-short/internal/repository/impl/redis"
 )
@@ -20,7 +23,6 @@ type LogPayload struct {
 }
 
 func main() {
-	// 1. 初始化数据库连接
 	db, err := postgresql.NewPostgresClient()
 	if err != nil {
 		log.Fatal("Failed to connect to DB:", err)
@@ -31,18 +33,32 @@ func main() {
 		log.Fatal("Failed to connect to Redis:", err)
 	}
 
-	// 2. 初始化 Repository
 	linkRepo := postgresql.NewLinkRepository(db)
 	accessLogRepo := postgresql.NewAccessLogRepository(db)
 
-	log.Println("👷 Worker started, waiting for logs...")
+	poolSize := 5
+	if s := os.Getenv("WORKER_POOL_SIZE"); s != "" {
+		if n, err := strconv.Atoi(s); err == nil && n > 0 {
+			poolSize = n
+		}
+	}
+
+	log.Printf("👷 Worker started, pool size=%d, waiting for logs...\n", poolSize)
 
 	ctx := context.Background()
+	jobs := make(chan LogPayload, poolSize*2)
 
-	// 3. 无限循环消费
+	// 协程池：多个 worker 并发消费
+	for i := 0; i < poolSize; i++ {
+		go func(id int) {
+			for payload := range jobs {
+				processLog(ctx, id, payload, linkRepo, accessLogRepo)
+			}
+		}(i)
+	}
+
+	// 主 goroutine：BLPop 入队
 	for {
-		// BLPop: 阻塞式读取列表右侧元素 (Timeout 0 表示无限等待)
-		// result[0] 是 key 名, result[1] 是 value
 		result, err := rdb.BLPop(ctx, 0, "access_logs").Result()
 		if err != nil {
 			log.Println("Redis connect error, retrying in 5s...", err)
@@ -57,30 +73,31 @@ func main() {
 			continue
 		}
 
-		// 4. 根据短码获取链接ID
-		linkID, err := linkRepo.GetLinkIDByCode(ctx, nil, payload.Code)
-		if err != nil {
-			log.Println("Failed to find link:", payload.Code, err)
-			continue
-		}
+		jobs <- payload
+	}
+}
 
-		// 5. 构造数据库模型
-		accessLog := model.AccessLog{
-			LinkID:    linkID,
-			ShortCode: payload.Code,
-			IPAddress: payload.IP,
-			UserAgent: payload.UA,
-			VisitedAt: time.Unix(payload.TS, 0),
-		}
+func processLog(ctx context.Context, workerID int, payload LogPayload, linkRepo repository.LinkRepository, accessLogRepo repository.AccessLogRepository) {
+	linkID, err := linkRepo.GetLinkIDByCode(ctx, nil, payload.Code)
+	if err != nil {
+		log.Printf("[worker-%d] Failed to find link: %s, err=%v\n", workerID, payload.Code, err)
+		return
+	}
 
-		// 6. 写入 PostgreSQL
-		// 优化思路：高并发下可以使用 Buffer Channel攒一批再 Batch Insert
-		if err := accessLogRepo.SaveAccessLog(ctx, nil, &accessLog); err != nil {
-			log.Println("Failed to save log to DB:", err)
-			// 实际生产中可能需要重新放回 Redis 或死信队列
-		} else {
-			// 开发环境打印一下，证明 Worker 在工作
-			log.Printf("✅ Saved log for %s", payload.Code)
-		}
+	accessLog := model.AccessLog{
+		LinkID:    linkID,
+		ShortCode: payload.Code,
+		IPAddress: payload.IP,
+		UserAgent: payload.UA,
+		VisitedAt: time.Unix(payload.TS, 0),
+	}
+
+	if err := accessLogRepo.SaveAccessLog(ctx, nil, &accessLog); err != nil {
+		log.Printf("[worker-%d] Failed to save log: %s, err=%v\n", workerID, payload.Code, err)
+		return
+	}
+
+	if os.Getenv("APP_ENV") != "production" {
+		log.Printf("[worker-%d] ✅ Saved log for %s\n", workerID, payload.Code)
 	}
 }

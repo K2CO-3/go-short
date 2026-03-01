@@ -93,14 +93,20 @@ func (d *linkRepoImpl) GetLinksByUser(ctx context.Context, tx *gorm.DB, userID u
 	var total int64
 	offset := (page - 1) * size
 
-	// 统计总数
-	query := tx.WithContext(ctx).Model(&model.Link{}).Where("user_id = ?", userID)
-	if err := query.Count(&total).Error; err != nil {
+	baseQuery := tx.WithContext(ctx).Model(&model.Link{}).Where("user_id = ?", userID)
+
+	if err := baseQuery.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 
-	// 查询列表
-	if err := query.Offset(offset).Limit(size).Order("created_at DESC").Find(&links).Error; err != nil {
+	if err := tx.WithContext(ctx).
+		Model(&model.Link{}).
+		Where("user_id = ?", userID).
+		Select("id, short_code, original_url, alias, user_id, is_custom, visit_count, expires_at, status, created_at").
+		Offset(offset).
+		Limit(size).
+		Order("created_at DESC").
+		Find(&links).Error; err != nil {
 		return nil, 0, err
 	}
 

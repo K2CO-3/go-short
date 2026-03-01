@@ -41,4 +41,5 @@ type LinkRepository interface {
 
 type AccessLogRepository interface {
 	SaveAccessLog(ctx context.Context, tx *gorm.DB, logEntry *model.AccessLog) error
+	GetRecentAccessLogs(ctx context.Context, tx *gorm.DB, limit int) ([]model.AccessLog, error)
 }

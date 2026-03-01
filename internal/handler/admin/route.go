@@ -18,5 +18,6 @@ func RegisterRoutes(router *gin.RouterGroup, handler *AdminHandler) {
 		adminGroup.PUT("/activateUser/:userID", handler.ActiveUser)
 		adminGroup.PUT("/activateLink/:linkID", handler.ActiveLink)
 		adminGroup.PUT("/unactivateLink/:linkID", handler.UnactiveLink)
+		adminGroup.GET("/recentLogs", handler.GetRecentAccessLogs)
 	}
 }

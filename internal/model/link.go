@@ -11,12 +11,12 @@ type Link struct {
 	ShortCode   string     `gorm:"not null;unique;size:20;default:''"`
 	OriginalURL string     `gorm:"not null;type:text"`
 	Alias       string     `gorm:"size:100;default:''"`
-	UserID      uuid.UUID  `gorm:"index:idx_links_user_id"`
+	UserID      uuid.UUID  `gorm:"index:idx_links_user_id;index:idx_links_user_created,priority:1"`
 	IsCustom    bool       `gorm:"default:false"`
 	VisitCount  int64      `gorm:"default:0"`
 	ExpiresAt   *time.Time `gorm:"index:idx_links_expires_at"`
 	Status      bool       `gorm:"default:true"`
-	CreatedAt   time.Time  `gorm:"autoCreateTime"`
+	CreatedAt   time.Time  `gorm:"autoCreateTime;index:idx_links_user_created,priority:2"`
 }
 
 // TableName 指定表名

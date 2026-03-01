@@ -14,6 +14,7 @@ import (
 	"go-short/internal/service"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 func main() {
@@ -61,6 +62,56 @@ func main() {
 	link.RegisterRoutes(api, linkHandler)
 	user.RegisterRoutes(api, userHandler)
 	admin.RegisterRoutes(api, adminHandler)
+
+	// 8. 测试接口（仅鉴权 + 数据库查询）
+	testGroup := api.Group("/test")
+	testGroup.Use(middleware.AuthMiddleware())
+	{
+		testGroup.GET("/ping", func(c *gin.Context) {
+			// 从中间件获取用户ID
+			uidStr, exists := c.Get("uid")
+			if !exists {
+				c.JSON(401, gin.H{"error": "用户信息未找到"})
+				return
+			}
+
+			userID, err := uuid.Parse(uidStr.(string))
+			if err != nil {
+				c.JSON(400, gin.H{"error": "无效的用户ID"})
+				return
+			}
+
+			// 查询数据库获取用户完整信息
+			user, err := userService.GetUserByUserID(c, userID)
+			if err != nil {
+				c.JSON(500, gin.H{
+					"success": false,
+					"error":   "查询用户信息失败",
+					"message": err.Error(),
+				})
+				return
+			}
+
+			// 返回用户信息
+			email := ""
+			if user.Email != nil {
+				email = *user.Email
+			}
+
+			c.JSON(200, gin.H{
+				"success":    true,
+				"message":    "认证成功，数据库查询成功",
+				"user_id":    user.ID.String(),
+				"username":   user.Username,
+				"email":      email,
+				"role":       user.Role,
+				"status":     user.Status,
+				"link_count": user.LinkCount,
+				"created_at": user.CreatedAt.Format("2006-01-02T15:04:05Z"),
+				"updated_at": user.UpdatedAt.Format("2006-01-02T15:04:05Z"),
+			})
+		})
+	}
 
 	log.Println("🚀 API Server running on :8080")
 	r.Run(":8080")
