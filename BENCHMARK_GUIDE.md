@@ -223,7 +223,7 @@ go tool pprof http://localhost:6060/debug/pprof/profile?seconds=60
 
 1. **增加缓存 TTL**（在 `cmd/redirect-server/main.go` 中）
    ```go
-   localCache := local.NewLocalCache(10*time.Minute, 20*time.Minute)
+   localCache := local.NewLocalCache(10*time.Minute, 20*time.Minute, 10000)
    ```
 
 2. **预热缓存**：在服务启动时加载热点数据

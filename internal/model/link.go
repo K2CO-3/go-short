@@ -8,7 +8,7 @@ import (
 
 type Link struct {
 	ID          int64      `gorm:"primaryKey"`
-	ShortCode   string     `gorm:"not null;unique;size:20;default:''"`
+	ShortCode   string     `gorm:"not null;unique;size:20;default:'';index:idx_links_short_code,where:expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP"`
 	OriginalURL string     `gorm:"not null;type:text"`
 	Alias       string     `gorm:"size:100;default:''"`
 	UserID      uuid.UUID  `gorm:"index:idx_links_user_id;index:idx_links_user_created,priority:1"`

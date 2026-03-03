@@ -173,9 +173,13 @@ func (s *LinkService) DeleteLink(ctx context.Context, linkID int64, userID uuid.
 		return ErrForbidden
 	}
 
+	shortCode := link.ShortCode
 	if err := s.linkRepository.DeleteLinkByID(ctx, s.db, linkID); err != nil {
 		return fmt.Errorf("删除链接失败: %w", err)
 	}
 
+	if s.cacheInvalidator != nil {
+		_ = s.cacheInvalidator.InvalidateLink(ctx, shortCode)
+	}
 	return nil
 }

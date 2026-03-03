@@ -43,3 +43,8 @@ type AccessLogRepository interface {
 	SaveAccessLog(ctx context.Context, tx *gorm.DB, logEntry *model.AccessLog) error
 	GetRecentAccessLogs(ctx context.Context, tx *gorm.DB, limit int) ([]model.AccessLog, error)
 }
+
+// CacheInvalidator 缓存失效接口（删除/禁用链接时调用，保证 Redis + 本地缓存一致性）
+type CacheInvalidator interface {
+	InvalidateLink(ctx context.Context, code string) error
+}
