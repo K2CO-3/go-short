@@ -119,6 +119,21 @@ func (s *LinkService) GetLinkByCode(ctx context.Context, code string) (*model.Li
 	return s.linkRepository.GetLinkByCode(ctx, s.db, code)
 }
 
+// GetLinkByCodeForRedirect 根据短码获取链接（用于重定向服务，包含过期时间检查）
+func (s *LinkService) GetLinkByCodeForRedirect(ctx context.Context, code string) (*model.Link, error) {
+	link, err := s.linkRepository.GetLinkByCode(ctx, s.db, code)
+	if err != nil {
+		return nil, ErrLinkNotFound
+	}
+
+	// 检查链接是否过期
+	if link.ExpiresAt != nil && link.ExpiresAt.Before(time.Now()) {
+		return nil, ErrLinkNotFound // 过期视为不存在
+	}
+
+	return link, nil
+}
+
 func (s *LinkService) GetLinkByUserAndURL(ctx context.Context, userID uuid.UUID, originalURL string) (*model.Link, error) {
 	return s.linkRepository.GetLinkByUserAndURL(ctx, s.db, userID, originalURL)
 }
