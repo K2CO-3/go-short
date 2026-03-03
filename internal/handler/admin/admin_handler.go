@@ -169,3 +169,31 @@ func (h *AdminHandler) UnactiveLink(c *gin.Context) {
 	}
 	c.JSON(200, NewUnactivateLinkResponse(linkIDStr, false))
 }
+
+// GetRecentAccessLogs 获取最近 100 条访问日志
+func (h *AdminHandler) GetRecentAccessLogs(c *gin.Context) {
+	const defaultLimit = 100
+	logs, err := h.adminService.GetRecentAccessLogs(c, defaultLimit)
+	if err != nil {
+		c.JSON(500, ErrDatabase)
+		return
+	}
+
+	resp := make([]AccessLogResponse, 0, len(logs))
+	for _, l := range logs {
+		visitedAt := ""
+		if !l.VisitedAt.IsZero() {
+			visitedAt = l.VisitedAt.Format("2006-01-02T15:04:05Z")
+		}
+		resp = append(resp, AccessLogResponse{
+			ID:        l.ID,
+			LinkID:    l.LinkID,
+			ShortCode: l.ShortCode,
+			IPAddress: l.IPAddress,
+			UserAgent: l.UserAgent,
+			VisitedAt: visitedAt,
+		})
+	}
+
+	c.JSON(200, NewListAccessLogsResponse(resp, len(resp)))
+}

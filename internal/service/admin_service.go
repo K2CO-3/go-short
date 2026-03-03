@@ -99,12 +99,37 @@ func (s *AdminService) GetAllUsers(ctx context.Context, page, size int) ([]model
 	return s.userRepository.GetAllUsers(ctx, s.db, page, size)
 }
 
-// ActiveLink 激活链接
+// ActiveLink 激活链接（需失效旧缓存，下次访问会从 DB 回源并回填）
 func (s *AdminService) ActiveLink(ctx context.Context, linkID int64) error {
-	return s.linkRepository.ActiveLink(ctx, s.db, linkID)
+	link, err := s.linkRepository.GetLinkByID(ctx, s.db, linkID)
+	if err != nil {
+		return err
+	}
+	if err := s.linkRepository.ActiveLink(ctx, s.db, linkID); err != nil {
+		return err
+	}
+	if s.cacheInvalidator != nil {
+		_ = s.cacheInvalidator.InvalidateLink(ctx, link.ShortCode)
+	}
+	return nil
 }
 
 // UnactiveLink 禁用链接
 func (s *AdminService) UnactiveLink(ctx context.Context, linkID int64) error {
-	return s.linkRepository.UnactiveLink(ctx, s.db, linkID)
+	link, err := s.linkRepository.GetLinkByID(ctx, s.db, linkID)
+	if err != nil {
+		return err
+	}
+	if err := s.linkRepository.UnactiveLink(ctx, s.db, linkID); err != nil {
+		return err
+	}
+	if s.cacheInvalidator != nil {
+		_ = s.cacheInvalidator.InvalidateLink(ctx, link.ShortCode)
+	}
+	return nil
+}
+
+// GetRecentAccessLogs 获取最近 N 条访问日志
+func (s *AdminService) GetRecentAccessLogs(ctx context.Context, limit int) ([]model.AccessLog, error) {
+	return s.accessLogRepository.GetRecentAccessLogs(ctx, s.db, limit)
 }

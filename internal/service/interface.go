@@ -11,14 +11,16 @@ type LinkService struct {
 	linkRepository      repository.LinkRepository
 	userRepository      repository.UserRepository
 	accessLogRepository repository.AccessLogRepository
+	cacheInvalidator    repository.CacheInvalidator
 }
 
-func NewLinkService(db *gorm.DB, linkRepository repository.LinkRepository, userRepository repository.UserRepository, accessLogRepository repository.AccessLogRepository) *LinkService {
+func NewLinkService(db *gorm.DB, linkRepository repository.LinkRepository, userRepository repository.UserRepository, accessLogRepository repository.AccessLogRepository, cacheInvalidator repository.CacheInvalidator) *LinkService {
 	return &LinkService{
 		db:                  db,
 		linkRepository:      linkRepository,
 		userRepository:      userRepository,
 		accessLogRepository: accessLogRepository,
+		cacheInvalidator:    cacheInvalidator,
 	}
 }
 
@@ -27,14 +29,16 @@ type AdminService struct {
 	linkRepository      repository.LinkRepository
 	userRepository      repository.UserRepository
 	accessLogRepository repository.AccessLogRepository
+	cacheInvalidator    repository.CacheInvalidator
 }
 
-func NewAdminService(db *gorm.DB, linkRepository repository.LinkRepository, userRepository repository.UserRepository, accessLogRepository repository.AccessLogRepository) *AdminService {
+func NewAdminService(db *gorm.DB, linkRepository repository.LinkRepository, userRepository repository.UserRepository, accessLogRepository repository.AccessLogRepository, cacheInvalidator repository.CacheInvalidator) *AdminService {
 	return &AdminService{
 		db:                  db,
 		linkRepository:      linkRepository,
 		userRepository:      userRepository,
 		accessLogRepository: accessLogRepository,
+		cacheInvalidator:    cacheInvalidator,
 	}
 }
 

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log"
 
 	"go-short/internal/handler/admin"
@@ -27,17 +28,20 @@ func main() {
 	if err != nil {
 		log.Fatal("Failed to connect to Redis:", err)
 	}
-	_ = rdb // Redis 客户端保留，供后续使用
+	redisRepo := redis.NewRedisRepository(rdb)
+
+	// 延迟队列 worker：消费缓存失效任务，提高可靠性
+	go redisRepo.RunCacheInvalidateWorker(context.Background())
 
 	// 2. 初始化 Repository
 	userRepo := postgresql.NewUserRepository(db)
 	linkRepo := postgresql.NewLinkRepository(db)
 	accessLogRepo := postgresql.NewAccessLogRepository(db)
 
-	// 3. 初始化 Service
+	// 3. 初始化 Service（redisRepo 用于缓存失效：删除/禁用链接时）
 	userService := service.NewUserService(db, userRepo)
-	linkService := service.NewLinkService(db, linkRepo, userRepo, accessLogRepo)
-	adminService := service.NewAdminService(db, linkRepo, userRepo, accessLogRepo)
+	linkService := service.NewLinkService(db, linkRepo, userRepo, accessLogRepo, redisRepo)
+	adminService := service.NewAdminService(db, linkRepo, userRepo, accessLogRepo, redisRepo)
 
 	// 4. 初始化 Handler
 	authHandler := auth.NewAuthHandler(userService)

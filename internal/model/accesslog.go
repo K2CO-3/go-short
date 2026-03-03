@@ -9,7 +9,7 @@ type AccessLog struct {
 	IPAddress string    `gorm:"size:45"` // 支持IPv6
 	UserAgent string    `gorm:"type:text"`
 	Referer   string    `gorm:"type:text"`
-	VisitedAt time.Time `gorm:"autoCreateTime;index:,sort:desc"`
+	VisitedAt time.Time `gorm:"column:visited_at;not null;index:,sort:desc"`
 }
 
 // TableName 指定表名

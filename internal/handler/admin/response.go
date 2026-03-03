@@ -47,6 +47,23 @@ type ListLinksResponse struct {
 	Limit int            `json:"limit"`
 }
 
+// AccessLogResponse 访问日志响应
+type AccessLogResponse struct {
+	ID        int64  `json:"id"`
+	LinkID    int64  `json:"link_id"`
+	ShortCode string `json:"short_code"`
+	IPAddress string `json:"ip_address"`
+	UserAgent string `json:"user_agent"`
+	VisitedAt string `json:"visited_at"`
+}
+
+// ListAccessLogsResponse 访问日志列表响应
+type ListAccessLogsResponse struct {
+	BaseResponse
+	Logs []AccessLogResponse `json:"logs"`
+	Total int                `json:"total"`
+}
+
 // ErrorResponse 错误响应
 type ErrorResponse struct {
 	BaseResponse
@@ -123,6 +140,15 @@ func NewListLinksResponse(links []LinkResponse, total, page, limit int) ListLink
 		Total:        total,
 		Page:         page,
 		Limit:        limit,
+	}
+}
+
+// NewListAccessLogsResponse 访问日志列表响应构造函数
+func NewListAccessLogsResponse(logs []AccessLogResponse, total int) ListAccessLogsResponse {
+	return ListAccessLogsResponse{
+		BaseResponse: NewSuccessResponse("获取访问日志成功"),
+		Logs:         logs,
+		Total:        total,
 	}
 }
 
