@@ -10,12 +10,14 @@ import (
 
 	"go-short/internal/bloom"
 	"go-short/internal/metrics"
+	"go-short/internal/mq"
 	"go-short/internal/repository/impl/local"
 	"go-short/internal/repository/impl/postgresql"
 	"go-short/internal/repository/impl/redis"
 	"go-short/internal/service"
 
 	"github.com/gin-gonic/gin"
+	"github.com/segmentio/kafka-go"
 	redisclient "github.com/redis/go-redis/v9"
 )
 
@@ -33,6 +35,9 @@ func main() {
 	if err != nil {
 		log.Fatal("Failed to connect to Redis:", err)
 	}
+
+	kafkaWriter := mq.NewAccessLogWriter()
+	defer kafkaWriter.Close()
 
 	// 2. 初始化 Repository
 	linkRepo := postgresql.NewLinkRepository(db)
@@ -173,8 +178,7 @@ func main() {
 			}
 		}
 
-		// Step 5: 异步发送访问日志
-		// 使用 go 协程 + context.Background()，避免 302 返回后 request context 被取消导致写入失败
+		// Step 5: 异步发送访问日志到 Kafka
 		go func(code, ip, ua string) {
 			bgCtx := context.Background()
 			logData := map[string]any{
@@ -184,11 +188,7 @@ func main() {
 				"ts":   time.Now().Unix(),
 			}
 			dataBytes, _ := json.Marshal(logData)
-
-			_ = rdb.XAdd(bgCtx, &redisclient.XAddArgs{
-				Stream: redis.AccessLogStream,
-				Values: map[string]interface{}{"payload": string(dataBytes)},
-			}).Err()
+			_ = kafkaWriter.WriteMessages(bgCtx, kafka.Message{Value: dataBytes})
 			rdb.Incr(bgCtx, "stats:visits:"+code)
 		}(code, c.ClientIP(), c.Request.UserAgent())
 
