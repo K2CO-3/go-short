@@ -68,5 +68,6 @@ func NewPostgresClient() (*gorm.DB, error) {
 	} else {
 		log.Println("✅ Database migrations completed")
 	}
+
 	return db, nil
 }

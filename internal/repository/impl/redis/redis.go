@@ -79,16 +79,18 @@ func (d *redisRepoImpl) PublishCacheInvalidate(ctx context.Context, code string)
 	return d.rdb.Publish(ctx, CacheInvalidateChannel, code).Err()
 }
 
-// doInvalidateLink 立即执行：删除 Redis 缓存并发布失效消息（供 worker 内部调用）
+// doInvalidateLink 立即执行：删除 Redis 缓存并发布失效消息
 func (d *redisRepoImpl) doInvalidateLink(ctx context.Context, code string) error {
 	if err := d.DeleteLinkCache(ctx, code); err != nil {
 		return err
 	}
-	_ = d.PublishCacheInvalidate(ctx, code) // 本地缓存失效，失败不影响主流程
+	if err := d.PublishCacheInvalidate(ctx, code); err != nil {
+		return err
+	}
 	return nil
 }
 
-// InvalidateLink 实现 CacheInvalidator：将任务入队，由 worker 异步执行（提高可靠性）
+// InvalidateLink 实现 CacheInvalidator：将任务入队
 func (d *redisRepoImpl) InvalidateLink(ctx context.Context, code string) error {
 	return d.EnqueueCacheInvalidate(ctx, code)
 }
@@ -97,12 +99,7 @@ func (d *redisRepoImpl) InvalidateLink(ctx context.Context, code string) error {
 // 延迟队列（增加缓存删除可靠性，支持失败重试）
 // ==========================================
 
-// 访问日志 Stream（取代原 List access_logs，支持 at-least-once 投递）
-// 使用新 key 避免与旧 List 共存时 WRONGTYPE
 const (
-	AccessLogStream        = "access_logs_stream"
-	AccessLogConsumerGroup = "access_logs_group"
-
 	CacheInvalidateDelayQueue = "cache_invalidate_delay_queue"
 	CacheInvalidateDelaySec   = 1 // 延迟 1 秒执行，确保 DB 事务已提交
 	CacheInvalidateRetrySec   = 5 // 失败后 5 秒重试
