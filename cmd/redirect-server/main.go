@@ -4,8 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"log"
+	"net"
 	"net/http"
 	_ "net/http/pprof" // 零埋点 pprof，import 即生效
+	"os"
+	"strings"
 	"time"
 
 	"go-short/internal/bloom"
@@ -17,8 +20,8 @@ import (
 	"go-short/internal/service"
 
 	"github.com/gin-gonic/gin"
-	"github.com/segmentio/kafka-go"
 	redisclient "github.com/redis/go-redis/v9"
+	"github.com/segmentio/kafka-go"
 )
 
 func main() {
@@ -81,6 +84,10 @@ func main() {
 
 	// 5. 初始化 Gin 引擎
 	r := gin.Default()
+	// 仅信任反向代理（默认本机 Nginx），避免任意来源伪造 X-Forwarded-For
+	if err := r.SetTrustedProxies(resolveTrustedProxies()); err != nil {
+		log.Fatal("Failed to set trusted proxies:", err)
+	}
 
 	// 6. 核心跳转路由（带延迟统计）
 	r.GET("/code/:code", func(c *gin.Context) {
@@ -179,6 +186,7 @@ func main() {
 		}
 
 		// Step 5: 异步发送访问日志到 Kafka
+		clientIP := realClientIP(c)
 		go func(code, ip, ua string) {
 			bgCtx := context.Background()
 			logData := map[string]any{
@@ -190,7 +198,7 @@ func main() {
 			dataBytes, _ := json.Marshal(logData)
 			_ = kafkaWriter.WriteMessages(bgCtx, kafka.Message{Value: dataBytes})
 			rdb.Incr(bgCtx, "stats:visits:"+code)
-		}(code, c.ClientIP(), c.Request.UserAgent())
+		}(code, clientIP, c.Request.UserAgent())
 
 		// Step 6: 302 重定向
 		c.Redirect(http.StatusFound, longURL)
@@ -214,4 +222,37 @@ func main() {
 	log.Println("🚀 Redirect Server running on :8080")
 	log.Println("📊 Metrics endpoint: http://localhost:8080/metrics")
 	r.Run(":8080")
+}
+
+func resolveTrustedProxies() []string {
+	// 可通过 TRUSTED_PROXIES 覆盖，例如：
+	// TRUSTED_PROXIES=127.0.0.1,::1,10.0.0.0/8
+	raw := strings.TrimSpace(os.Getenv("TRUSTED_PROXIES"))
+	if raw == "" {
+		return []string{"127.0.0.1", "::1"}
+	}
+	parts := strings.Split(raw, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			out = append(out, p)
+		}
+	}
+	if len(out) == 0 {
+		return []string{"127.0.0.1", "::1"}
+	}
+	return out
+}
+
+func realClientIP(c *gin.Context) string {
+	ip := strings.TrimSpace(c.ClientIP())
+	if ip != "" {
+		return ip
+	}
+	host, _, err := net.SplitHostPort(strings.TrimSpace(c.Request.RemoteAddr))
+	if err == nil && host != "" {
+		return host
+	}
+	return strings.TrimSpace(c.Request.RemoteAddr)
 }

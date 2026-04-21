@@ -2,8 +2,11 @@ package admin
 
 import (
 	"errors"
+	"go-short/internal/repository"
 	"go-short/internal/service"
 	"strconv"
+	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -170,10 +173,39 @@ func (h *AdminHandler) UnactiveLink(c *gin.Context) {
 	c.JSON(200, NewUnactivateLinkResponse(linkIDStr, false))
 }
 
-// GetRecentAccessLogs 获取最近 100 条访问日志
-func (h *AdminHandler) GetRecentAccessLogs(c *gin.Context) {
-	const defaultLimit = 100
-	logs, err := h.adminService.GetRecentAccessLogs(c, defaultLimit)
+// GetAccessLogs 获取访问日志（支持筛选）
+func (h *AdminHandler) GetAccessLogs(c *gin.Context) {
+	var req AccessLogQueryRequest
+	if err := c.ShouldBindQuery(&req); err != nil {
+		c.JSON(400, ErrInvalidRequest)
+		return
+	}
+
+	startTime, err := parseAccessLogTime(req.StartTime)
+	if err != nil {
+		c.JSON(400, ErrInvalidRequest)
+		return
+	}
+	endTime, err := parseAccessLogTime(req.EndTime)
+	if err != nil {
+		c.JSON(400, ErrInvalidRequest)
+		return
+	}
+
+	limit := req.Limit
+	if limit < 0 {
+		c.JSON(400, ErrInvalidRequest)
+		return
+	}
+
+	logs, err := h.adminService.GetAccessLogs(c, repository.AccessLogQuery{
+		Limit:       limit,
+		StartTime:   startTime,
+		EndTime:     endTime,
+		IPAddress:   strings.TrimSpace(req.IPAddress),
+		ShortCode:   strings.TrimSpace(req.ShortCode),
+		OriginalURL: strings.TrimSpace(req.OriginalURL),
+	})
 	if err != nil {
 		c.JSON(500, ErrDatabase)
 		return
@@ -196,4 +228,24 @@ func (h *AdminHandler) GetRecentAccessLogs(c *gin.Context) {
 	}
 
 	c.JSON(200, NewListAccessLogsResponse(resp, len(resp)))
+}
+
+func parseAccessLogTime(raw string) (*time.Time, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil, nil
+	}
+
+	layouts := []string{
+		time.RFC3339,
+		"2006-01-02 15:04:05",
+		"2006-01-02",
+	}
+	for _, layout := range layouts {
+		t, err := time.Parse(layout, raw)
+		if err == nil {
+			return &t, nil
+		}
+	}
+	return nil, errors.New("invalid time format")
 }

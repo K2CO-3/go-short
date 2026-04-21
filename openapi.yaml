@@ -1,0 +1,954 @@
+openapi: 3.0.3
+info:
+  title: GoShort API
+  version: 1.0.0
+  description: |
+    GoShort 后端 API 文档（基于当前代码实现生成），用于前端代码生成。
+
+    - API 前缀: `/api/v1`
+    - 认证方式: `Authorization: Bearer <JWT>`
+    - 返回风格: 统一包含 `success`，业务错误多数包含 `code/message`
+servers:
+  - url: https://localhost
+    description: Nginx HTTPS 入口
+  - url: http://localhost:8081
+    description: 直连 api-service（开发调试）
+tags:
+  - name: Auth
+  - name: Links
+  - name: User
+  - name: Admin
+paths:
+  /api/v1/auth/register:
+    post:
+      tags: [Auth]
+      summary: 用户注册
+      operationId: register
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+            example:
+              username: demo_user
+              password: Passw0rd!
+              email: demo@example.com
+      responses:
+        '200':
+          description: 注册成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegisterResponse'
+        '400':
+          description: 参数错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                code: BAD_REQUEST
+                message: 请求无效
+        '409':
+          description: 用户已存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                code: USER_EXISTS
+                message: 用户已存在
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/v1/auth/login:
+    post:
+      tags: [Auth]
+      summary: 用户登录
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+            example:
+              username: demo_user
+              password: Passw0rd!
+      responses:
+        '200':
+          description: 登录成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          description: 用户名或密码错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                code: INVALID_CREDENTIALS
+                message: 用户名或密码错误
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/v1/links:
+    post:
+      tags: [Links]
+      summary: 创建短链接
+      operationId: createLink
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateLinkRequest'
+      responses:
+        '200':
+          description: 创建成功或链接已存在（同样返回 200）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LinkResponse'
+        '400':
+          description: 参数错误或短码冲突
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/ErrorResponse'
+                  - $ref: '#/components/schemas/MiddlewareErrorResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedMiddleware'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    get:
+      tags: [Links]
+      summary: 获取当前用户链接列表
+      operationId: getLinks
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListLinksResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedMiddleware'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/v1/links/GetLinksByAlias:
+    get:
+      tags: [Links]
+      summary: 按别名筛选当前用户链接
+      operationId: getLinksByAlias
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: alias
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListLinksResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/UnauthorizedMiddleware'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/v1/links/{id}:
+    delete:
+      tags: [Links]
+      summary: 删除短链接
+      operationId: deleteLink
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+      responses:
+        '200':
+          description: 删除成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BaseResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/UnauthorizedMiddleware'
+        '403':
+          description: 无权限
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/ErrorResponse'
+                  - $ref: '#/components/schemas/MiddlewareErrorResponse'
+        '404':
+          description: 链接不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/v1/user/profile:
+    get:
+      tags: [User]
+      summary: 获取当前用户资料
+      operationId: getProfile
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfileResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedMiddleware'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    put:
+      tags: [User]
+      summary: 更新当前用户资料
+      operationId: updateProfile
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateUserRequest'
+            example:
+              email: newmail@example.com
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfileResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/UnauthorizedMiddleware'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/v1/user/password:
+    put:
+      tags: [User]
+      summary: 修改当前用户密码
+      operationId: updatePassword
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdatePasswordRequest'
+            example:
+              old_password: oldPass123
+              new_password: NewPass123!
+      responses:
+        '200':
+          description: 修改成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BaseResponse'
+        '400':
+          description: 参数错误或旧密码错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedMiddleware'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/v1/admin/createUser:
+    post:
+      tags: [Admin]
+      summary: 管理员创建用户
+      operationId: adminCreateUser
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminCreateUserRequest'
+      responses:
+        '200':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminUserResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/UnauthorizedMiddleware'
+        '403':
+          $ref: '#/components/responses/ForbiddenMiddleware'
+        '409':
+          description: 用户已存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/v1/admin/getUserList:
+    get:
+      tags: [Admin]
+      summary: 管理员分页获取用户列表
+      operationId: adminGetUserList
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - in: query
+          name: size
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminListUsersResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedMiddleware'
+        '403':
+          $ref: '#/components/responses/ForbiddenMiddleware'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/v1/admin/delete/{userID}:
+    delete:
+      tags: [Admin]
+      summary: 管理员删除用户
+      operationId: adminDeleteUser
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: userID
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: 删除成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminUserResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/UnauthorizedMiddleware'
+        '403':
+          $ref: '#/components/responses/ForbiddenMiddleware'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/v1/admin/unactivateUser/{userID}:
+    put:
+      tags: [Admin]
+      summary: 管理员禁用用户
+      operationId: adminUnactivateUser
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: userID
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: 操作成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminUserResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/UnauthorizedMiddleware'
+        '403':
+          $ref: '#/components/responses/ForbiddenMiddleware'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/v1/admin/activateUser/{userID}:
+    put:
+      tags: [Admin]
+      summary: 管理员启用用户
+      operationId: adminActivateUser
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: userID
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: 操作成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminUserResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/UnauthorizedMiddleware'
+        '403':
+          $ref: '#/components/responses/ForbiddenMiddleware'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/v1/admin/activateLink/{linkID}:
+    put:
+      tags: [Admin]
+      summary: 管理员启用链接
+      operationId: adminActivateLink
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: linkID
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: 操作成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminLinkResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/UnauthorizedMiddleware'
+        '403':
+          $ref: '#/components/responses/ForbiddenMiddleware'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/v1/admin/unactivateLink/{linkID}:
+    put:
+      tags: [Admin]
+      summary: 管理员禁用链接
+      operationId: adminUnactivateLink
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: linkID
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: 操作成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminLinkResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/UnauthorizedMiddleware'
+        '403':
+          $ref: '#/components/responses/ForbiddenMiddleware'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/v1/admin/logs:
+    get:
+      tags: [Admin]
+      summary: 管理员查询访问日志
+      description: |
+        支持按访问时间范围、访问 IP、短码、原始 URL 筛选。
+        - `limit=0` 或不传：不限制返回数量
+        - `limit<0`：返回 400
+      operationId: adminGetAccessLogs
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: start_time
+          schema:
+            type: string
+            description: 支持 RFC3339、`2006-01-02 15:04:05`、`2006-01-02`
+            example: "2026-04-01T00:00:00Z"
+        - in: query
+          name: end_time
+          schema:
+            type: string
+            description: 支持 RFC3339、`2006-01-02 15:04:05`、`2006-01-02`
+            example: "2026-04-20T23:59:59Z"
+        - in: query
+          name: ip_address
+          schema:
+            type: string
+            example: "203.0.113.42"
+        - in: query
+          name: short_code
+          schema:
+            type: string
+            example: "abc123"
+        - in: query
+          name: original_url
+          schema:
+            type: string
+            example: "github.com"
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 0
+            description: 最大返回条数，0 表示不限制
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminListAccessLogsResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/UnauthorizedMiddleware'
+        '403':
+          $ref: '#/components/responses/ForbiddenMiddleware'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  responses:
+    BadRequest:
+      description: 请求无效
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            code: BAD_REQUEST
+            message: 请求无效
+    InternalError:
+      description: 系统错误
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            code: INTERNAL_ERROR
+            message: 系统错误
+    UnauthorizedMiddleware:
+      description: 未认证（中间件直接返回）
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/MiddlewareErrorResponse'
+          examples:
+            missingAuth:
+              value:
+                error: Authorization header required
+            badFormat:
+              value:
+                error: Invalid authorization header format
+            expired:
+              value:
+                error: Invalid or expired token
+    ForbiddenMiddleware:
+      description: 非管理员
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/MiddlewareErrorResponse'
+          example:
+            error: 权限不足，需要管理员权限
+
+  schemas:
+    BaseResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+      required: [success]
+
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        code:
+          type: string
+        message:
+          type: string
+        details:
+          type: string
+      required: [success, code, message]
+
+    MiddlewareErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required: [error]
+
+    RegisterRequest:
+      type: object
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+        email:
+          type: string
+          format: email
+      required: [username, password, email]
+
+    LoginRequest:
+      type: object
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+      required: [username, password]
+
+    RegisterResponse:
+      allOf:
+        - $ref: '#/components/schemas/BaseResponse'
+        - type: object
+          properties:
+            user_id:
+              type: string
+              format: uuid
+            username:
+              type: string
+            email:
+              type: string
+          required: [user_id, username, email]
+
+    LoginResponse:
+      allOf:
+        - $ref: '#/components/schemas/BaseResponse'
+        - type: object
+          properties:
+            access_token:
+              type: string
+            refresh_token:
+              type: string
+              nullable: true
+            expires_in:
+              type: integer
+            token_type:
+              type: string
+              example: Bearer
+          required: [access_token, expires_in, token_type]
+
+    CreateLinkRequest:
+      type: object
+      properties:
+        url:
+          type: string
+          format: uri
+        alias:
+          type: string
+          nullable: true
+        expires_at:
+          type: string
+          format: date-time
+          nullable: true
+        status:
+          type: boolean
+          nullable: true
+        short_code:
+          type: string
+          nullable: true
+      required: [url]
+
+    LinkResponse:
+      allOf:
+        - $ref: '#/components/schemas/BaseResponse'
+        - type: object
+          properties:
+            link_id:
+              type: integer
+              format: int64
+            short_code:
+              type: string
+            original_url:
+              type: string
+            short_url:
+              type: string
+            alias:
+              type: string
+            is_active:
+              type: boolean
+              nullable: true
+            expires_at:
+              type: string
+              format: date-time
+              nullable: true
+            created_at:
+              type: string
+              format: date-time
+
+    ListLinksResponse:
+      allOf:
+        - $ref: '#/components/schemas/BaseResponse'
+        - type: object
+          properties:
+            links:
+              type: array
+              items:
+                $ref: '#/components/schemas/LinkResponse'
+            total:
+              type: integer
+              format: int64
+            page:
+              type: integer
+            limit:
+              type: integer
+          required: [links, total, page, limit]
+
+    UpdateUserRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+          nullable: true
+
+    UpdatePasswordRequest:
+      type: object
+      properties:
+        old_password:
+          type: string
+        new_password:
+          type: string
+      required: [old_password, new_password]
+
+    UserProfileResponse:
+      allOf:
+        - $ref: '#/components/schemas/BaseResponse'
+        - type: object
+          properties:
+            user_id:
+              type: string
+              format: uuid
+            username:
+              type: string
+            email:
+              type: string
+              nullable: true
+            role:
+              type: string
+            status:
+              type: string
+            link_count:
+              type: integer
+              format: int64
+            created_at:
+              type: string
+              format: date-time
+              nullable: true
+            updated_at:
+              type: string
+              format: date-time
+              nullable: true
+
+    AdminCreateUserRequest:
+      type: object
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+        realName:
+          type: string
+        email:
+          type: string
+          format: email
+        phone:
+          type: string
+        role:
+          type: string
+        status:
+          type: string
+        remark:
+          type: string
+      required: [username, password, email, role, status]
+
+    AdminUserResponse:
+      allOf:
+        - $ref: '#/components/schemas/BaseResponse'
+        - type: object
+          properties:
+            user_id:
+              type: string
+            username:
+              type: string
+            email:
+              type: string
+            is_active:
+              type: boolean
+              nullable: true
+            created_at:
+              type: string
+            updated_at:
+              type: string
+
+    AdminLinkResponse:
+      allOf:
+        - $ref: '#/components/schemas/BaseResponse'
+        - type: object
+          properties:
+            link_id:
+              type: string
+            short_code:
+              type: string
+            original_url:
+              type: string
+            is_active:
+              type: boolean
+              nullable: true
+            created_by:
+              type: string
+            created_at:
+              type: string
+            updated_at:
+              type: string
+
+    AdminListUsersResponse:
+      allOf:
+        - $ref: '#/components/schemas/BaseResponse'
+        - type: object
+          properties:
+            users:
+              type: array
+              items:
+                $ref: '#/components/schemas/AdminUserResponse'
+            total:
+              type: integer
+            page:
+              type: integer
+            limit:
+              type: integer
+          required: [users, total, page, limit]
+
+    AdminAccessLogItem:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        link_id:
+          type: integer
+          format: int64
+        short_code:
+          type: string
+        ip_address:
+          type: string
+        user_agent:
+          type: string
+        visited_at:
+          type: string
+      required: [id, link_id, short_code, ip_address, user_agent, visited_at]
+
+    AdminListAccessLogsResponse:
+      allOf:
+        - $ref: '#/components/schemas/BaseResponse'
+        - type: object
+          properties:
+            logs:
+              type: array
+              items:
+                $ref: '#/components/schemas/AdminAccessLogItem'
+            total:
+              type: integer
+          required: [logs, total]

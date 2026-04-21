@@ -15,6 +15,7 @@ services:
     depends_on:
       - redirect-service
       - api-service
+      - frontend-service
     networks:
       - goshort-net
 
@@ -109,7 +110,7 @@ services:
       - DB_DSN=host=postgres user=cmh password=123456 dbname=goshort port=5432 sslmode=disable
       - REDIS_ADDR=redis:6379
       - JWT_SECRET=youwillneverknow
-      - BASE_URL=http://localhost
+      - BASE_URL=https://localhost
     networks:
       - goshort-net
 
@@ -127,6 +128,16 @@ services:
       - APP_ENV=production
       - DB_DSN=host=postgres user=cmh password=123456 dbname=goshort port=5432 sslmode=disable
       - KAFKA_BROKERS=kafka:9092
+    networks:
+      - goshort-net
+
+  # 4. Frontend 静态站点（由网关 Nginx 转发）
+  frontend-service:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.frontend
+    container_name: goshort-frontend
+    restart: always
     networks:
       - goshort-net
 

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"strconv"
+	"strings"
 
 	"go-short/internal/service"
 
@@ -51,10 +52,7 @@ func (h *LinkHandler) Create(c *gin.Context) {
 	if err != nil {
 		// 检查是否是已存在链接
 		if errors.Is(err, service.ErrLinkAlreadyExists) {
-			baseURL := os.Getenv("BASE_URL")
-			if baseURL == "" {
-				baseURL = "http://localhost:8080"
-			}
+			baseURL := resolveBaseURL(c)
 			shortURL := baseURL + "/code/" + link.ShortCode
 			c.JSON(200, NewLinkExistsResponse(link, shortURL))
 			return
@@ -68,10 +66,7 @@ func (h *LinkHandler) Create(c *gin.Context) {
 		return
 	}
 
-	baseURL := os.Getenv("BASE_URL")
-	if baseURL == "" {
-		baseURL = "http://localhost:8080"
-	}
+	baseURL := resolveBaseURL(c)
 	shortURL := baseURL + "/code/" + link.ShortCode
 
 	c.JSON(200, NewCreateLinkResponse(link, shortURL))
@@ -97,10 +92,7 @@ func (h *LinkHandler) GetLinks(c *gin.Context) {
 		return
 	}
 
-	baseURL := os.Getenv("BASE_URL")
-	if baseURL == "" {
-		baseURL = "http://localhost:8080"
-	}
+	baseURL := resolveBaseURL(c)
 	c.JSON(200, NewListLinksResponse(list, total, page, 10, baseURL))
 }
 
@@ -129,10 +121,7 @@ func (h *LinkHandler) GetLinksByAlias(c *gin.Context) {
 		return
 	}
 
-	baseURL := os.Getenv("BASE_URL")
-	if baseURL == "" {
-		baseURL = "http://localhost:8080"
-	}
+	baseURL := resolveBaseURL(c)
 	c.JSON(200, NewListLinksResponse(list, total, page, 10, baseURL))
 }
 
@@ -167,4 +156,28 @@ func (h *LinkHandler) Delete(c *gin.Context) {
 	}
 
 	c.JSON(200, NewDeleteLinkResponse())
+}
+
+func resolveBaseURL(c *gin.Context) string {
+	if baseURL := strings.TrimRight(strings.TrimSpace(os.Getenv("BASE_URL")), "/"); baseURL != "" {
+		return baseURL
+	}
+
+	scheme := "http"
+	if c.Request.TLS != nil {
+		scheme = "https"
+	}
+	if forwardedProto := strings.TrimSpace(c.GetHeader("X-Forwarded-Proto")); forwardedProto != "" {
+		scheme = strings.ToLower(forwardedProto)
+	}
+
+	host := strings.TrimSpace(c.GetHeader("X-Forwarded-Host"))
+	if host == "" {
+		host = strings.TrimSpace(c.Request.Host)
+	}
+	if host == "" {
+		host = "localhost"
+	}
+
+	return scheme + "://" + host
 }

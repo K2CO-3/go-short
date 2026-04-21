@@ -69,3 +69,13 @@ type ChangeAdminStatusRequest struct {
 	IDRequest
 	Status int `json:"status" binding:"required,oneof=0 1"`
 }
+
+// AccessLogQueryRequest 访问日志筛选请求
+type AccessLogQueryRequest struct {
+	StartTime   string `form:"start_time"`
+	EndTime     string `form:"end_time"`
+	IPAddress   string `form:"ip_address"`
+	ShortCode   string `form:"short_code"`
+	OriginalURL string `form:"original_url"`
+	Limit       int    `form:"limit"`
+}
