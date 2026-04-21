@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"go-short/internal/model"
+	"time"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -41,7 +42,16 @@ type LinkRepository interface {
 
 type AccessLogRepository interface {
 	SaveAccessLog(ctx context.Context, tx *gorm.DB, logEntry *model.AccessLog) error
-	GetRecentAccessLogs(ctx context.Context, tx *gorm.DB, limit int) ([]model.AccessLog, error)
+	GetAccessLogs(ctx context.Context, tx *gorm.DB, query AccessLogQuery) ([]model.AccessLog, error)
+}
+
+type AccessLogQuery struct {
+	Limit       int
+	StartTime   *time.Time
+	EndTime     *time.Time
+	IPAddress   string
+	ShortCode   string
+	OriginalURL string
 }
 
 // CacheInvalidator 缓存失效接口（删除/禁用链接时调用，保证 Redis + 本地缓存一致性）
