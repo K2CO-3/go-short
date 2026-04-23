@@ -29,6 +29,7 @@ type LinkRepository interface {
 	CheckShortCodeExists(ctx context.Context, tx *gorm.DB, code string) (bool, error)
 	GetLinkByUserAndURL(ctx context.Context, tx *gorm.DB, userID uuid.UUID, originalURL string) (*model.Link, error)
 	GetLinksByUser(ctx context.Context, tx *gorm.DB, userID uuid.UUID, page, size int) ([]model.Link, int64, error)
+	GetAllLinks(ctx context.Context, tx *gorm.DB, page, size int) ([]model.Link, int64, error)
 	GetLinksByUserAlias(ctx context.Context, tx *gorm.DB, userID uuid.UUID, alias string, page, size int) ([]model.Link, int64, error)
 	GetLinkIDByCode(ctx context.Context, tx *gorm.DB, code string) (int64, error)
 	ActiveLink(ctx context.Context, tx *gorm.DB, LinkID int64) error

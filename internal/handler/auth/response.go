@@ -20,6 +20,7 @@ type RegisterResponse struct {
 type LoginResponse struct {
 	BaseResponse
 	AccessToken  string `json:"access_token"`
+	Role         string `json:"role"`
 	RefreshToken string `json:"refresh_token,omitempty"`
 	ExpiresIn    int    `json:"expires_in"`
 	TokenType    string `json:"token_type"`
@@ -49,9 +50,10 @@ func NewRegisterResponse(userID uuid.UUID, username, email string) RegisterRespo
 	return resp
 }
 
-func NewLoginResponse(accessToken string, expiresIn int) LoginResponse {
+func NewLoginResponse(accessToken string, role string, expiresIn int) LoginResponse {
 	resp := LoginResponse{
 		BaseResponse: NewSuccessResponse("Login successful"),
+		Role:         role,
 	}
 	resp.AccessToken = accessToken
 	resp.ExpiresIn = expiresIn

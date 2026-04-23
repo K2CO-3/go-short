@@ -23,19 +23,30 @@ export function LoginPage() {
 
   return (
     <main className="auth">
-      <h1>登录</h1>
+      <div className="auth-header">
+        <h1>登录</h1>
+        <p className="auth-sub">使用账号进入控制台</p>
+      </div>
       <form onSubmit={onSubmit} className="card">
-        <input value={username} onChange={(e) => setUsername(e.target.value)} placeholder="用户名" />
+        <input
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
+          placeholder="用户名（必填）"
+          required
+        />
         <input
           type="password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          placeholder="密码"
+          placeholder="密码（必填）"
+          required
         />
         {error && <p className="error">{error}</p>}
-        <button type="submit">登录</button>
+        <button type="submit" className="btn-primary">
+          登录
+        </button>
       </form>
-      <p>
+      <p className="auth-footer">
         没有账号？<Link to="/register">注册</Link>
       </p>
     </main>

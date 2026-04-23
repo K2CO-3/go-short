@@ -19,21 +19,32 @@ cd deploy
 docker-compose up --build
 ```
 
-启动后访问：
-- 短链跳转：`http://localhost/` 或 `http://localhost:8082/`（视 Nginx 配置）
-- API 服务：`http://localhost:8081/`
-- 健康检查：`http://localhost:8081/health`、`http://localhost:8082/health`
+启动后（默认 compose 端口）：
+
+- **Nginx 入口**：`http://localhost`（或按 `BASE_URL` / 证书使用 HTTPS）
+- **跳转服务（直连调试用）**：`http://localhost:8082`（如 `/code/{短码}`）
+- **API（直连调试用）**：`http://localhost:8081`，路径前缀一般为 `/api/v1`
+- 健康检查：各服务常见路径为 `GET /health`（以对应 `main` 与路由为准）
+
+**前端**：静态资源由 **frontend 镜像** 构建，经 Nginx 与 API、跳转同域或反代。本地改界面可在/frontend目录下：
+
+```bash
+cd frontend
+npm install   # 或 npm ci（见下方 package-lock.json 说明）
+npm run dev
+```
+
+更完整的架构、端口与 API 列表见 [短链接服务文档.md](短链接服务文档.md)。
 
 ---
 
 ## 项目结构
 
-三个独立服务：
-
-| 服务 | 说明 |
+| 部分 | 说明 |
 |------|------|
-| **redirect-server** | 跳转服务，本地缓存 + Redis + 布隆过滤器，处理读流量 |
-| **api-server** | 管理 API，用户、链接、管理员功能 |
-| **worker** | 消费 Redis Stream，异步写入访问日志 |
+| **cmd/redirect-server** | 跳转服务；本地缓存 + Redis + 布隆；访问日志写入 **Kafka** |
+| **cmd/api-server** | 管理 API；用户、短链、资料、**管理员**接口 |
+| **cmd/worker** | 从 **Kafka** 消费访问日志，写入 PostgreSQL |
+| **frontend/** | Vite + React + TypeScript 管理端 |
 
-更多细节见 [短链接服务文档.md](短链接服务文档.md)。
+---

@@ -1,5 +1,7 @@
 import type {
+  AdminCreateUserRequest,
   AdminListAccessLogsResponse,
+  AdminListLinksResponse,
   AdminListUsersResponse,
   ApiError,
   BaseResponse,
@@ -63,6 +65,14 @@ export const api = {
   deleteLink(token: string, id: number) {
     return request<BaseResponse>(`/links/${id}`, "DELETE", token);
   },
+  /** 启用/禁用短链：本人可管理自己的短链；角色为 admin 时也可管理他人短链 */
+  setLinkActive(token: string, id: number, active: boolean) {
+    const path = active ? "activate" : "unactivate";
+    return request<LinkResponse>(`/links/${id}/${path}`, "PUT", token);
+  },
+  adminGetLinks(token: string, page = 1, size = 20) {
+    return request<AdminListLinksResponse>(`/admin/getLinkList?page=${page}&size=${size}`, "GET", token);
+  },
   getProfile(token: string) {
     return request<UserProfileResponse>("/user/profile", "GET", token);
   },
@@ -82,16 +92,18 @@ export const api = {
       token
     );
   },
-  adminCreateUser(
-    token: string,
-    payload: { username: string; password: string; email: string; role: string; status: string }
-  ) {
-    return request<BaseResponse & { user_id?: string }>(
-      "/admin/createUser",
-      "POST",
-      token,
-      payload
-    );
+  adminCreateUser(token: string, payload: AdminCreateUserRequest) {
+    const body: Record<string, unknown> = {
+      username: payload.username,
+      password: payload.password,
+      email: payload.email,
+      role: payload.role,
+      status: payload.status
+    };
+    if (payload.realName?.trim()) body.realName = payload.realName.trim();
+    if (payload.phone?.trim()) body.phone = payload.phone.trim();
+    if (payload.remark?.trim()) body.remark = payload.remark.trim();
+    return request<BaseResponse & { user_id?: string }>("/admin/createUser", "POST", token, body);
   },
   adminSetUserActive(token: string, userID: string, active: boolean) {
     const endpoint = active ? "activateUser" : "unactivateUser";

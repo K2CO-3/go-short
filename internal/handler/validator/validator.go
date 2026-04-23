@@ -2,6 +2,7 @@ package validator
 
 import (
 	"log"
+	"net/url"
 	"regexp"
 	"slices"
 	"strings"
@@ -179,17 +180,30 @@ func validateRole(fl validator.FieldLevel) bool {
 	return false
 }
 
-// validateURL 验证 URL 格式（允许不带协议的 URL，service 层会处理）
+// validateURL 验证 URL 格式（允许不带协议，与 link_service 一致地补全 https 后用 net/url 解析）
 func validateURL(fl validator.FieldLevel) bool {
-	url := fl.Field().String()
-	if url == "" {
+	raw := fl.Field().String()
+	return isValidHTTPURL(raw)
+}
+
+func isValidHTTPURL(raw string) bool {
+	s := strings.TrimSpace(raw)
+	if s == "" {
 		return false
 	}
-	// 允许带协议或不带协议的 URL
-	// 带协议: http://example.com 或 https://example.com
-	// 不带协议: example.com 或 www.example.com
-	urlRegex := regexp.MustCompile(`^(https?://)?([\da-z\.-]+\.)+[a-z]{2,}([/\w \.-]*)*/?$`)
-	return urlRegex.MatchString(strings.ToLower(url))
+	if !strings.HasPrefix(s, "http://") && !strings.HasPrefix(s, "https://") {
+		s = "https://" + s
+	}
+	u, err := url.Parse(s)
+	if err != nil || u.Host == "" {
+		return false
+	}
+	switch strings.ToLower(u.Scheme) {
+	case "http", "https":
+		return true
+	default:
+		return false
+	}
 }
 
 // validateExpiryTime 验证过期时间

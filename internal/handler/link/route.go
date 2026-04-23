@@ -14,6 +14,8 @@ func RegisterRoutes(r *gin.RouterGroup, handler *LinkHandler) {
 		linksGroup.POST("", handler.Create)
 		linksGroup.GET("", handler.GetLinks)
 		linksGroup.GET("/GetLinksByAlias", handler.GetLinksByAlias)
+		linksGroup.PUT("/:id/activate", handler.ActivateLink)
+		linksGroup.PUT("/:id/unactivate", handler.UnactivateLink)
 		linksGroup.DELETE("/:id", handler.Delete)
 	}
 }

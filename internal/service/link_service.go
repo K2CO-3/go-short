@@ -72,17 +72,17 @@ func (s *LinkService) CreateLink(ctx context.Context, cmd CreateLinkCommand) (*m
 	}
 
 	// 5. 创建链接对象
+	active := true
+	if cmd.Status != nil {
+		active = *cmd.Status
+	}
 	link := &model.Link{
 		OriginalURL: normalizedURL,
 		UserID:      cmd.UserID,
 		CreatedAt:   time.Now(),
 		ExpiresAt:   cmd.ExpiresAt,
-		Status:      *cmd.Status,
+		Status:      active,
 		Alias:       alias,
-	}
-
-	if cmd.Status != nil {
-		link.Status = *cmd.Status
 	}
 
 	// 6. 处理自定义短码
@@ -150,12 +150,28 @@ func (s *LinkService) CheckShortCodeDuplicate(ctx context.Context, short_code st
 	return s.linkRepository.CheckShortCodeDuplicate(ctx, s.db, short_code)
 }
 
-func (s *LinkService) ActiveLink(ctx context.Context, linkID int64) error {
-	return s.linkRepository.ActiveLink(ctx, s.db, linkID)
-}
-
-func (s *LinkService) UnactiveLink(ctx context.Context, linkID int64) error {
-	return s.linkRepository.UnactiveLink(ctx, s.db, linkID)
+// SetLinkActive 启用/禁用短链：仅链接所有者或管理员可操作，并失效缓存
+func (s *LinkService) SetLinkActive(ctx context.Context, linkID int64, userID uuid.UUID, isAdmin bool, active bool) error {
+	link, err := s.linkRepository.GetLinkByID(ctx, s.db, linkID)
+	if err != nil {
+		return ErrLinkNotFound
+	}
+	if link.UserID != userID && !isAdmin {
+		return ErrForbidden
+	}
+	if active {
+		if err := s.linkRepository.ActiveLink(ctx, s.db, linkID); err != nil {
+			return fmt.Errorf("启用链接失败: %w", err)
+		}
+	} else {
+		if err := s.linkRepository.UnactiveLink(ctx, s.db, linkID); err != nil {
+			return fmt.Errorf("禁用链接失败: %w", err)
+		}
+	}
+	if s.cacheInvalidator != nil {
+		_ = s.cacheInvalidator.InvalidateLink(ctx, link.ShortCode)
+	}
+	return nil
 }
 
 func (s *LinkService) GetLinksByUserAlias(ctx context.Context, userID uuid.UUID, alias string, page, size int) ([]model.Link, int64, error) {

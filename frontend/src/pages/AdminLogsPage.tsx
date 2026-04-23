@@ -1,91 +1,231 @@
 import { FormEvent, useState } from "react";
 import { api } from "../lib/api";
+import {
+  addDays,
+  buildAccessLogTimeParam,
+  formatInputDate,
+  isAccessLogRangeReversed
+} from "../lib/datetime";
 import { getToken } from "../lib/auth";
 import type { AdminAccessLogItem } from "../lib/types";
+
+const LIMIT_MAX = 2000;
+const LIMIT_MIN = 1;
 
 export function AdminLogsPage() {
   const token = getToken()!;
   const [logs, setLogs] = useState<AdminAccessLogItem[]>([]);
   const [error, setError] = useState("");
+
+  const [startDate, setStartDate] = useState("");
   const [startTime, setStartTime] = useState("");
+  const [endDate, setEndDate] = useState("");
   const [endTime, setEndTime] = useState("");
+
   const [ipAddress, setIpAddress] = useState("");
   const [shortCode, setShortCode] = useState("");
   const [originalURL, setOriginalURL] = useState("");
   const [limit, setLimit] = useState("100");
+  const [loading, setLoading] = useState(false);
+
+  function applyPreset(kind: "today" | "7d" | "30d" | "clear") {
+    setError("");
+    if (kind === "clear") {
+      setStartDate("");
+      setStartTime("");
+      setEndDate("");
+      setEndTime("");
+      return;
+    }
+    const today = new Date();
+    const todayStr = formatInputDate(today);
+    if (kind === "today") {
+      setStartDate(todayStr);
+      setEndDate(todayStr);
+      setStartTime("");
+      setEndTime("");
+      return;
+    }
+    const days = kind === "7d" ? -6 : -29;
+    const start = formatInputDate(addDays(today, days));
+    setStartDate(start);
+    setEndDate(todayStr);
+    setStartTime("");
+    setEndTime("");
+  }
 
   async function query(e: FormEvent) {
     e.preventDefault();
     setError("");
+
+    const a = buildAccessLogTimeParam(startDate, startTime);
+    if (a.error) {
+      setError(a.error);
+      return;
+    }
+    const b = buildAccessLogTimeParam(endDate, endTime);
+    if (b.error) {
+      setError(b.error);
+      return;
+    }
+
+    if (isAccessLogRangeReversed(a.value, b.value)) {
+      setError("开始时间不能晚于结束时间");
+      return;
+    }
+
+    const limitTrim = limit.trim();
+    if (limitTrim !== "") {
+      const n = Number(limitTrim);
+      if (!Number.isInteger(n) || n < LIMIT_MIN || n > LIMIT_MAX) {
+        setError(`请输入 ${LIMIT_MIN}～${LIMIT_MAX} 之间的整数`);
+        return;
+      }
+    }
+
+    setLoading(true);
     try {
       const res = await api.adminGetLogs(token, {
-        start_time: startTime || undefined,
-        end_time: endTime || undefined,
-        ip_address: ipAddress || undefined,
-        short_code: shortCode || undefined,
-        original_url: originalURL || undefined,
-        limit: limit ? Number(limit) : undefined
+        start_time: a.value,
+        end_time: b.value,
+        ip_address: ipAddress.trim() || undefined,
+        short_code: shortCode.trim() || undefined,
+        original_url: originalURL.trim() || undefined,
+        limit: limitTrim === "" ? undefined : Number(limitTrim)
       });
       setLogs(res.logs);
     } catch (err) {
       setError((err as Error).message);
+    } finally {
+      setLoading(false);
     }
   }
 
   return (
-    <section>
-      <h2>管理员 - 访问日志</h2>
-      <p className="hint">
-        时间格式支持：<code>2026-04-01T00:00:00Z</code>、<code>2026-04-01 00:00:00</code>、
-        <code>2026-04-01</code>
-      </p>
-      <form className="card grid" onSubmit={query}>
-        <input
-          value={startTime}
-          onChange={(e) => setStartTime(e.target.value)}
-          placeholder="start_time (如 2026-04-01T00:00:00Z)"
-        />
-        <input
-          value={endTime}
-          onChange={(e) => setEndTime(e.target.value)}
-          placeholder="end_time (如 2026-04-20T23:59:59Z)"
-        />
-        <input value={ipAddress} onChange={(e) => setIpAddress(e.target.value)} placeholder="ip_address" />
-        <input value={shortCode} onChange={(e) => setShortCode(e.target.value)} placeholder="short_code" />
-        <input
-          value={originalURL}
-          onChange={(e) => setOriginalURL(e.target.value)}
-          placeholder="original_url"
-        />
-        <input value={limit} onChange={(e) => setLimit(e.target.value)} placeholder="limit" />
-        <button type="submit">查询</button>
+    <section className="page">
+      <header className="page-header">
+        <h2>访问日志</h2>
+        <p className="page-lead">按条件筛选访问记录</p>
+      </header>
+      <p className="hint form-hint-logs">先用「快捷」或手动选开始、结束。需要精确到几点几分时，再点右侧时钟。</p>
+      <form className="card card-form" onSubmit={query}>
+        <div className="log-presets" role="group" aria-label="快捷选择时间范围">
+          <span className="log-presets-label">快捷</span>
+          <button type="button" className="btn-ghost btn-sm" onClick={() => applyPreset("today")}>
+            今天
+          </button>
+          <button type="button" className="btn-ghost btn-sm" onClick={() => applyPreset("7d")}>
+            近 7 天
+          </button>
+          <button type="button" className="btn-ghost btn-sm" onClick={() => applyPreset("30d")}>
+            近 30 天
+          </button>
+          <button type="button" className="btn-ghost btn-sm" onClick={() => applyPreset("clear")}>
+            清空时间
+          </button>
+        </div>
+        <div className="form-grid-logs form-grid-logs--wide">
+          <div className="field-stack form-log-time-block">
+            <span className="field-label">从哪一天起</span>
+            <div className="form-log-time-pair">
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                aria-label="开始日期"
+              />
+              <input
+                type="time"
+                step={60}
+                value={startTime}
+                onChange={(e) => setStartTime(e.target.value)}
+                aria-label="开始时间（选填，需配合日期）"
+              />
+            </div>
+          </div>
+          <div className="field-stack form-log-time-block">
+            <span className="field-label">查到哪一天</span>
+            <div className="form-log-time-pair">
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                aria-label="结束日期"
+              />
+              <input
+                type="time"
+                step={60}
+                value={endTime}
+                onChange={(e) => setEndTime(e.target.value)}
+                aria-label="结束时间（选填，需配合日期）"
+              />
+            </div>
+          </div>
+          <div className="field-stack">
+            <span className="field-label">最多多少条</span>
+            <input
+              value={limit}
+              onChange={(e) => setLimit(e.target.value)}
+              inputMode="numeric"
+              placeholder="默认 100"
+              aria-label="返回条数上限"
+            />
+          </div>
+        </div>
+        <div className="form-grid-logs">
+          <input
+            value={ipAddress}
+            onChange={(e) => setIpAddress(e.target.value)}
+            placeholder="IP 地址（选填）"
+          />
+          <input value={shortCode} onChange={(e) => setShortCode(e.target.value)} placeholder="短码（选填）" />
+          <input
+            value={originalURL}
+            onChange={(e) => setOriginalURL(e.target.value)}
+            placeholder="原始链接（选填）"
+          />
+        </div>
+        <button type="submit" className="btn-primary" disabled={loading}>
+          {loading ? "查询中..." : "查询"}
+        </button>
       </form>
       {error && <p className="error">{error}</p>}
-      <div className="card">
-        <table>
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>LinkID</th>
-              <th>短码</th>
-              <th>IP</th>
-              <th>UserAgent</th>
-              <th>访问时间</th>
-            </tr>
-          </thead>
-          <tbody>
-            {logs.map((l) => (
-              <tr key={l.id}>
-                <td>{l.id}</td>
-                <td>{l.link_id}</td>
-                <td>{l.short_code}</td>
-                <td>{l.ip_address}</td>
-                <td>{l.user_agent}</td>
-                <td>{l.visited_at}</td>
+      <div className="card table-wrap">
+        <div className="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>编号</th>
+                <th>链接 ID</th>
+                <th>短码</th>
+                <th>IP</th>
+                <th>访问环境</th>
+                <th>访问时间</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {!loading && logs.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="empty-cell">
+                    暂无日志数据
+                  </td>
+                </tr>
+              )}
+              {logs.map((l) => (
+                <tr key={l.id}>
+                  <td>{l.id}</td>
+                  <td>{l.link_id}</td>
+                  <td>
+                    <code className="code-inline">{l.short_code}</code>
+                  </td>
+                  <td>{l.ip_address}</td>
+                  <td className="cell-muted">{l.user_agent}</td>
+                  <td className="cell-nowrap">{l.visited_at}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </section>
   );
