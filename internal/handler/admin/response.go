@@ -12,6 +12,7 @@ type UserResponse struct {
 	UserID    string `json:"user_id,omitempty"`
 	Username  string `json:"username,omitempty"`
 	Email     string `json:"email,omitempty"`
+	Role      string `json:"role,omitempty"`
 	IsActive  *bool  `json:"is_active,omitempty"`
 	CreatedAt string `json:"created_at,omitempty"`
 	UpdatedAt string `json:"updated_at,omitempty"`

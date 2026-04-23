@@ -100,6 +100,11 @@ func (s *AdminService) GetAllUsers(ctx context.Context, page, size int) ([]model
 	return s.userRepository.GetAllUsers(ctx, s.db, page, size)
 }
 
+// GetAllLinks 获取全站短链列表（分页，管理员）
+func (s *AdminService) GetAllLinks(ctx context.Context, page, size int) ([]model.Link, int64, error) {
+	return s.linkRepository.GetAllLinks(ctx, s.db, page, size)
+}
+
 // ActiveLink 激活链接（需失效旧缓存，下次访问会从 DB 回源并回填）
 func (s *AdminService) ActiveLink(ctx context.Context, linkID int64) error {
 	link, err := s.linkRepository.GetLinkByID(ctx, s.db, linkID)

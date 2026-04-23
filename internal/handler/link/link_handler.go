@@ -158,6 +158,72 @@ func (h *LinkHandler) Delete(c *gin.Context) {
 	c.JSON(200, NewDeleteLinkResponse())
 }
 
+// ActivateLink 启用短链（本人或管理员）
+func (h *LinkHandler) ActivateLink(c *gin.Context) {
+	linkID, ok := parseLinkIDParam(c)
+	if !ok {
+		return
+	}
+	uidStr := c.GetString("uid")
+	userID, err := uuid.Parse(uidStr)
+	if err != nil {
+		c.JSON(400, ErrInvalidUserID)
+		return
+	}
+	isAdmin := c.GetString("role") == "admin"
+	if err := h.linkService.SetLinkActive(c, linkID, userID, isAdmin, true); err != nil {
+		if errors.Is(err, service.ErrLinkNotFound) {
+			c.JSON(404, ErrLinkNotFound)
+			return
+		}
+		if errors.Is(err, service.ErrForbidden) {
+			c.JSON(403, ErrForbidden)
+			return
+		}
+		c.JSON(500, ErrDatabase)
+		return
+	}
+	c.JSON(200, NewLinkStatusResponse(linkID, true))
+}
+
+// UnactivateLink 禁用短链（本人或管理员）
+func (h *LinkHandler) UnactivateLink(c *gin.Context) {
+	linkID, ok := parseLinkIDParam(c)
+	if !ok {
+		return
+	}
+	uidStr := c.GetString("uid")
+	userID, err := uuid.Parse(uidStr)
+	if err != nil {
+		c.JSON(400, ErrInvalidUserID)
+		return
+	}
+	isAdmin := c.GetString("role") == "admin"
+	if err := h.linkService.SetLinkActive(c, linkID, userID, isAdmin, false); err != nil {
+		if errors.Is(err, service.ErrLinkNotFound) {
+			c.JSON(404, ErrLinkNotFound)
+			return
+		}
+		if errors.Is(err, service.ErrForbidden) {
+			c.JSON(403, ErrForbidden)
+			return
+		}
+		c.JSON(500, ErrDatabase)
+		return
+	}
+	c.JSON(200, NewLinkStatusResponse(linkID, false))
+}
+
+func parseLinkIDParam(c *gin.Context) (int64, bool) {
+	linkIDStr := c.Param("id")
+	linkID, err := strconv.ParseInt(linkIDStr, 10, 64)
+	if err != nil || linkID <= 0 {
+		c.JSON(400, ErrInvalidRequest)
+		return 0, false
+	}
+	return linkID, true
+}
+
 func resolveBaseURL(c *gin.Context) string {
 	if baseURL := strings.TrimRight(strings.TrimSpace(os.Getenv("BASE_URL")), "/"); baseURL != "" {
 		return baseURL

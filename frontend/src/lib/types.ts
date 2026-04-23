@@ -30,6 +30,7 @@ export type LoginRequest = {
 
 export type LoginResponse = BaseResponse & {
   access_token: string;
+  role: string;
   expires_in: number;
   token_type: string;
   refresh_token?: string;
@@ -41,6 +42,18 @@ export type CreateLinkRequest = {
   expires_at?: string | null;
   status?: boolean | null;
   short_code?: string | null;
+};
+
+/** 对应 internal/handler/admin/request.go CreateUserRequest */
+export type AdminCreateUserRequest = {
+  username: string;
+  password: string;
+  email: string;
+  role: string;
+  status: string;
+  realName?: string;
+  phone?: string;
+  remark?: string;
 };
 
 export type LinkItem = {
@@ -63,6 +76,22 @@ export type ListLinksResponse = BaseResponse & {
   limit: number;
 };
 
+export type AdminLinkItem = {
+  link_id: string;
+  short_code: string;
+  original_url: string;
+  is_active?: boolean;
+  created_by?: string;
+  created_at?: string;
+};
+
+export type AdminListLinksResponse = BaseResponse & {
+  links: AdminLinkItem[];
+  total: number;
+  page: number;
+  limit: number;
+};
+
 export type UserProfileResponse = BaseResponse & {
   user_id: string;
   username: string;
@@ -78,6 +107,7 @@ export type AdminUserItem = {
   user_id: string;
   username: string;
   email: string;
+  role?: string;
   is_active?: boolean;
   created_at?: string;
   updated_at?: string;

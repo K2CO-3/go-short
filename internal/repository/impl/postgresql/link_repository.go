@@ -113,6 +113,33 @@ func (d *linkRepoImpl) GetLinksByUser(ctx context.Context, tx *gorm.DB, userID u
 	return links, total, nil
 }
 
+// GetAllLinks 全站链接分页（管理员）
+func (d *linkRepoImpl) GetAllLinks(ctx context.Context, tx *gorm.DB, page, size int) ([]model.Link, int64, error) {
+	if tx == nil {
+		tx = d.db
+	}
+	var links []model.Link
+	var total int64
+	offset := (page - 1) * size
+
+	baseQuery := tx.WithContext(ctx).Model(&model.Link{})
+	if err := baseQuery.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	if err := tx.WithContext(ctx).
+		Model(&model.Link{}).
+		Select("id, short_code, original_url, alias, user_id, is_custom, visit_count, expires_at, status, created_at").
+		Offset(offset).
+		Limit(size).
+		Order("created_at DESC").
+		Find(&links).Error; err != nil {
+		return nil, 0, err
+	}
+
+	return links, total, nil
+}
+
 // GetLinkIDByCode 根据短码查询链接ID (用于日志查询服务)
 func (d *linkRepoImpl) GetLinkIDByCode(ctx context.Context, tx *gorm.DB, code string) (int64, error) {
 	if tx == nil {

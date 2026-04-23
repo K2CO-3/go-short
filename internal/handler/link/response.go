@@ -112,6 +112,15 @@ func NewDeleteLinkResponse() BaseResponse {
 	return NewSuccessResponse("短链接删除成功")
 }
 
+// NewLinkStatusResponse 更新短链启用/禁用状态
+func NewLinkStatusResponse(linkID int64, isActive bool) LinkResponse {
+	return LinkResponse{
+		BaseResponse: NewSuccessResponse("链接状态已更新"),
+		LinkID:       linkID,
+		IsActive:     &isActive,
+	}
+}
+
 // 错误响应构造函数
 func NewErrorResponse(code, message, details string) ErrorResponse {
 	return ErrorResponse{

@@ -72,5 +72,5 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	c.JSON(200, NewLoginResponse(token, 24*3600))
+	c.JSON(200, NewLoginResponse(token, user.Role, 24*3600))
 }

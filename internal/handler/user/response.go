@@ -19,7 +19,7 @@ type UserResponse struct {
 	UserID    uuid.UUID  `json:"user_id,omitempty"`
 	Username  string     `json:"username,omitempty"`
 	Email     *string    `json:"email,omitempty"`
-	Role      string     `json:"role,omitempty"`
+	Role      string     `json:"role"`
 	Status    string     `json:"status,omitempty"`
 	LinkCount int64      `json:"link_count,omitempty"`
 	CreatedAt *time.Time `json:"created_at,omitempty"`

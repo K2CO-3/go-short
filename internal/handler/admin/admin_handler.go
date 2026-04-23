@@ -136,6 +136,7 @@ func (h *AdminHandler) GetUsers(c *gin.Context) {
 			UserID:    user.ID.String(),
 			Username:  user.Username,
 			Email:     email,
+			Role:      user.Role,
 			IsActive:  &isActive,
 			CreatedAt: createdAt,
 			UpdatedAt: updatedAt,
@@ -143,6 +144,47 @@ func (h *AdminHandler) GetUsers(c *gin.Context) {
 	}
 
 	c.JSON(200, NewListUsersResponse(userResponses, int(total), page, size))
+}
+
+// GetLinkList 获取全站短链列表（分页）
+func (h *AdminHandler) GetLinkList(c *gin.Context) {
+	pageStr := c.DefaultQuery("page", "1")
+	sizeStr := c.DefaultQuery("size", "10")
+
+	page, err := strconv.Atoi(pageStr)
+	if err != nil || page < 1 {
+		page = 1
+	}
+
+	size, err := strconv.Atoi(sizeStr)
+	if err != nil || size < 1 || size > 100 {
+		size = 10
+	}
+
+	links, total, err := h.adminService.GetAllLinks(c, page, size)
+	if err != nil {
+		c.JSON(500, ErrDatabase)
+		return
+	}
+
+	linkResponses := make([]LinkResponse, 0, len(links))
+	for _, link := range links {
+		isActive := link.Status
+		createdAt := ""
+		if !link.CreatedAt.IsZero() {
+			createdAt = link.CreatedAt.Format("2006-01-02T15:04:05Z")
+		}
+		linkResponses = append(linkResponses, LinkResponse{
+			LinkID:      strconv.FormatInt(link.ID, 10),
+			ShortCode:   link.ShortCode,
+			OriginalURL: link.OriginalURL,
+			IsActive:    &isActive,
+			CreatedBy:   link.UserID.String(),
+			CreatedAt:   createdAt,
+		})
+	}
+
+	c.JSON(200, NewListLinksResponse(linkResponses, int(total), page, size))
 }
 
 func (h *AdminHandler) ActiveLink(c *gin.Context) {
