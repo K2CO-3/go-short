@@ -9,11 +9,14 @@ import (
 	"os"
 	"time"
 
+	"go-short/internal/repository"
+
 	"github.com/redis/go-redis/v9"
 )
 
 type redisRepoImpl struct {
-	rdb *redis.Client
+	rdb              *redis.Client
+	redirectNotifier repository.RedirectCacheNotifier
 }
 
 // NewRedisClient 初始化 Redis 连接
@@ -47,9 +50,9 @@ func NewRedisClient() (*redis.Client, error) {
 	return rdb, nil
 }
 
-// NewRedisRepository 创建 RedisRepository 实例
-func NewRedisRepository(rdb *redis.Client) *redisRepoImpl {
-	return &redisRepoImpl{rdb: rdb}
+// NewRedisRepository 创建 RedisRepository 实例；redirectNotifier 可为 nil（仅 Redirect 等不写失效的场景）
+func NewRedisRepository(rdb *redis.Client, redirectNotifier repository.RedirectCacheNotifier) *redisRepoImpl {
+	return &redisRepoImpl{rdb: rdb, redirectNotifier: redirectNotifier}
 }
 
 // ==========================================
@@ -71,21 +74,15 @@ func (d *redisRepoImpl) DeleteLinkCache(ctx context.Context, code string) error 
 	return d.rdb.Del(ctx, "short:"+code).Err()
 }
 
-// CacheInvalidateChannel Redirect 订阅此 channel 以删除本地缓存
-const CacheInvalidateChannel = "cache_invalidate"
-
-// PublishCacheInvalidate 发布缓存失效消息，Redirect 服务订阅后删除本地缓存
-func (d *redisRepoImpl) PublishCacheInvalidate(ctx context.Context, code string) error {
-	return d.rdb.Publish(ctx, CacheInvalidateChannel, code).Err()
-}
-
-// doInvalidateLink 立即执行：删除 Redis 缓存并发布失效消息
+// doInvalidateLink 立即执行：删除 Redis 缓存并通过 Kafka 通知 Redirect 删除本地缓存
 func (d *redisRepoImpl) doInvalidateLink(ctx context.Context, code string) error {
 	if err := d.DeleteLinkCache(ctx, code); err != nil {
 		return err
 	}
-	if err := d.PublishCacheInvalidate(ctx, code); err != nil {
-		return err
+	if d.redirectNotifier != nil {
+		if err := d.redirectNotifier.NotifyInvalidate(ctx, code); err != nil {
+			return err
+		}
 	}
 	return nil
 }

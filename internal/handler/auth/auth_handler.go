@@ -65,6 +65,10 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		c.JSON(401, ErrInvalidCredentials)
 		return
 	}
+	if user.Status != "active" {
+		c.JSON(403, ErrUserDisabled)
+		return
+	}
 	// 生成 JWT
 	token, err := util.GenerateToken(user.ID, user.Username, user.Role, 24*time.Hour)
 	if err != nil {

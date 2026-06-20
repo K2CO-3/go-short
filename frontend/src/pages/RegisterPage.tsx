@@ -14,7 +14,7 @@ export function RegisterPage() {
     setError("");
     try {
       await api.register({ username, email, password });
-      nav("/login");
+      nav("/login", { replace: true, state: { fromRegister: true } });
     } catch (err) {
       setError((err as Error).message);
     }

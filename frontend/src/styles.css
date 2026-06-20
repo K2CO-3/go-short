@@ -276,6 +276,86 @@ input.input-datetime:focus {
   line-height: 1.4;
 }
 
+.form-hint-tight {
+  margin-top: 2px;
+}
+
+/* 短链创建：左右两栏同高同边框，避免视觉错位 */
+.form-row--shortcode-expiry {
+  align-items: stretch;
+}
+
+.link-form-side {
+  min-width: 0;
+  min-height: 5.75rem;
+  padding: 14px 16px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  justify-content: flex-start;
+  box-sizing: border-box;
+}
+
+.link-form-side--shortcode {
+  background: var(--bg-elev);
+  justify-content: center;
+}
+
+.link-form-side--shortcode > input {
+  width: 100%;
+  margin: 0;
+}
+
+.link-form-side--expiry {
+  background: linear-gradient(
+    160deg,
+    color-mix(in srgb, var(--accent-muted) 55%, var(--surface)) 0%,
+    var(--bg-elev) 100%
+  );
+  box-shadow: inset 0 1px 0 color-mix(in srgb, #fff 70%, transparent);
+}
+
+.expiry-panel-toggle.form-check,
+.link-form-side--expiry .expiry-panel-toggle {
+  margin-bottom: 0;
+}
+
+.expiry-panel-note {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  color: var(--text-muted);
+  padding: 2px 0 4px;
+}
+
+.expiry-datetime-stack {
+  gap: 8px;
+}
+
+.form-datetime-pair {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.form-datetime-pair .input-calendar {
+  flex: 1 1 8.5rem;
+  min-width: 0;
+  margin: 0;
+}
+
+input.input-calendar {
+  cursor: pointer;
+}
+
+.expiry-never {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
 .form-row {
   display: grid;
   gap: 12px;
@@ -284,6 +364,7 @@ input.input-datetime:focus {
 
 .form-row.two {
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
 }
 
 .form-row.three {
@@ -591,6 +672,16 @@ tbody tr:last-child td {
   font-variant-numeric: tabular-nums;
 }
 
+/* 过期列：flex 放在 td 内层 div，避免 td{display:flex} 破坏表格边框对齐 */
+.cell-expires {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  white-space: normal;
+  min-height: 1.25em;
+}
+
 .empty-cell {
   text-align: center;
   color: var(--text-muted);
@@ -660,6 +751,17 @@ tbody tr:last-child td {
   color: var(--ok);
 }
 
+.badge-warn {
+  background: #f5e8d8;
+  color: #8a5a1c;
+}
+
+/* 原生日历/时钟：勿对 type=date/time 使用 readOnly，否则 Chromium/WebKit 往往无法弹出选择器 */
+input[type="date"].input-calendar,
+input[type="time"].input-calendar {
+  cursor: pointer;
+}
+
 /* Messages */
 .error {
   color: var(--danger);
@@ -671,6 +773,10 @@ tbody tr:last-child td {
   color: var(--ok);
   font-size: 0.9rem;
   margin: 8px 0 0;
+}
+
+.auth .card > .ok:first-child {
+  margin: 0 0 14px;
 }
 
 .hint {

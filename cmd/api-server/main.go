@@ -10,6 +10,7 @@ import (
 	"go-short/internal/handler/user"
 	"go-short/internal/handler/validator"
 	"go-short/internal/middleware"
+	"go-short/internal/mq"
 	"go-short/internal/repository/impl/postgresql"
 	"go-short/internal/repository/impl/redis"
 	"go-short/internal/service"
@@ -28,7 +29,10 @@ func main() {
 	if err != nil {
 		log.Fatal("Failed to connect to Redis:", err)
 	}
-	redisRepo := redis.NewRedisRepository(rdb)
+	cacheInvalidateWriter := mq.NewCacheInvalidateWriter()
+	defer cacheInvalidateWriter.Close()
+	redirectKafka := mq.NewKafkaRedirectNotifier(cacheInvalidateWriter)
+	redisRepo := redis.NewRedisRepository(rdb, redirectKafka)
 
 	// 延迟队列 worker：消费缓存失效任务，提高可靠性
 	go redisRepo.RunCacheInvalidateWorker(context.Background())
@@ -40,7 +44,7 @@ func main() {
 
 	// 3. 初始化 Service（redisRepo 用于缓存失效：删除/禁用链接时）
 	userService := service.NewUserService(db, userRepo)
-	linkService := service.NewLinkService(db, linkRepo, userRepo, accessLogRepo, redisRepo)
+	linkService := service.NewLinkService(db, linkRepo, userRepo, accessLogRepo, redisRepo, redirectKafka)
 	adminService := service.NewAdminService(db, linkRepo, userRepo, accessLogRepo, redisRepo)
 
 	// 4. 初始化 Handler

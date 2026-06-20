@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../lib/api";
+import { formatExpiresAtDisplay, isExpiresAtInPast } from "../lib/datetime";
 import { getToken } from "../lib/auth";
 import type { AdminLinkItem } from "../lib/types";
 
@@ -57,8 +58,9 @@ export function AdminLinksPage() {
               <tr>
                 <th>ID</th>
                 <th>短码</th>
-                <th>创建者 (user_id)</th>
+                <th>创建者</th>
                 <th>原始地址</th>
+                <th>过期</th>
                 <th>状态</th>
                 <th className="th-actions" />
               </tr>
@@ -66,7 +68,7 @@ export function AdminLinksPage() {
             <tbody>
               {!loading && items.length === 0 && !error && (
                 <tr>
-                  <td colSpan={6} className="empty-cell">
+                  <td colSpan={7} className="empty-cell">
                     暂无数据
                   </td>
                 </tr>
@@ -77,11 +79,21 @@ export function AdminLinksPage() {
                   <td>
                     <code className="code-inline">{i.short_code}</code>
                   </td>
-                  <td className="cell-ellipsis" title={i.created_by || ""}>
-                    {i.created_by || "—"}
+                  <td className="cell-ellipsis" title={i.creator_username || ""}>
+                    {i.creator_username || "—"}
                   </td>
                   <td className="cell-ellipsis" title={i.original_url}>
                     {i.original_url}
+                  </td>
+                  <td>
+                    <div className="cell-expires">
+                      <span>{formatExpiresAtDisplay(i.expires_at)}</span>
+                      {isExpiresAtInPast(i.expires_at) && (
+                        <span className="badge badge-warn" title="当前时间已超过该过期时间">
+                          已过期
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td>
                     {i.is_active === false ? <span className="badge">停用</span> : <span className="badge badge-ok">启用</span>}

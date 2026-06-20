@@ -12,15 +12,17 @@ type LinkService struct {
 	userRepository      repository.UserRepository
 	accessLogRepository repository.AccessLogRepository
 	cacheInvalidator    repository.CacheInvalidator
+	redirectNotifier    repository.RedirectCacheNotifier
 }
 
-func NewLinkService(db *gorm.DB, linkRepository repository.LinkRepository, userRepository repository.UserRepository, accessLogRepository repository.AccessLogRepository, cacheInvalidator repository.CacheInvalidator) *LinkService {
+func NewLinkService(db *gorm.DB, linkRepository repository.LinkRepository, userRepository repository.UserRepository, accessLogRepository repository.AccessLogRepository, cacheInvalidator repository.CacheInvalidator, redirectNotifier repository.RedirectCacheNotifier) *LinkService {
 	return &LinkService{
 		db:                  db,
 		linkRepository:      linkRepository,
 		userRepository:      userRepository,
 		accessLogRepository: accessLogRepository,
 		cacheInvalidator:    cacheInvalidator,
+		redirectNotifier:    redirectNotifier,
 	}
 }
 
