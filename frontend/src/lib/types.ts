@@ -81,7 +81,9 @@ export type AdminLinkItem = {
   short_code: string;
   original_url: string;
   is_active?: boolean;
-  created_by?: string;
+  /** 创建者用户名（管理端列表） */
+  creator_username?: string;
+  expires_at?: string | null;
   created_at?: string;
 };
 

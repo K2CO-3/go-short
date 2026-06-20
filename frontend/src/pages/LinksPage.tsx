@@ -1,17 +1,14 @@
 import { FormEvent, useEffect, useState } from "react";
 import { api } from "../lib/api";
-import { defaultLocalDatetime, localDatetimeToIso } from "../lib/datetime";
+import {
+  dateAndTimeToIso,
+  defaultLocalDatetime,
+  formatExpiresAtDisplay,
+  isExpiresAtInPast,
+  splitLocalDatetime
+} from "../lib/datetime";
 import { getToken } from "../lib/auth";
 import type { LinkItem } from "../lib/types";
-
-function formatExpiresAt(iso: string | null | undefined): string {
-  if (!iso) return "—";
-  try {
-    return new Date(iso).toLocaleString();
-  } catch {
-    return iso;
-  }
-}
 
 export function LinksPage() {
   const token = getToken()!;
@@ -19,7 +16,7 @@ export function LinksPage() {
   const [url, setUrl] = useState("");
   const [alias, setAlias] = useState("");
   const [shortCode, setShortCode] = useState("");
-  const [expiresLocal, setExpiresLocal] = useState(() => defaultLocalDatetime(30));
+  const [expiresParts, setExpiresParts] = useState(() => splitLocalDatetime(defaultLocalDatetime(30)));
   const [noExpiry, setNoExpiry] = useState(true);
   const [linkActive, setLinkActive] = useState(true);
   const [message, setMessage] = useState("");
@@ -48,9 +45,16 @@ export function LinksPage() {
     e.preventDefault();
     setError("");
     setMessage("");
+    if (!noExpiry) {
+      const chosen = new Date(`${expiresParts.date}T${expiresParts.time}`);
+      if (Number.isNaN(chosen.getTime()) || chosen.getTime() <= Date.now()) {
+        setError("过期时间须晚于当前时间，请用日历与时钟重新选择");
+        return;
+      }
+    }
     setCreating(true);
     try {
-      const expiresIso = noExpiry ? undefined : localDatetimeToIso(expiresLocal);
+      const expiresIso = noExpiry ? undefined : dateAndTimeToIso(expiresParts.date, expiresParts.time);
       const res = await api.createLink(token, {
         url,
         alias: alias.trim() || undefined,
@@ -62,7 +66,7 @@ export function LinksPage() {
       setUrl("");
       setAlias("");
       setShortCode("");
-      setExpiresLocal(defaultLocalDatetime(30));
+      setExpiresParts(splitLocalDatetime(defaultLocalDatetime(30)));
       setNoExpiry(true);
       setLinkActive(true);
       await load();
@@ -119,14 +123,16 @@ export function LinksPage() {
             placeholder="别名（可选，不填则自动生成）"
           />
         </div>
-        <div className="form-row two">
-          <input
-            value={shortCode}
-            onChange={(e) => setShortCode(e.target.value)}
-            placeholder="自定义短码（可选，4–16 位字母数字及 - _）"
-          />
-          <div className="field-stack">
-            <label className="form-check">
+        <div className="form-row two form-row--shortcode-expiry">
+          <div className="link-form-side link-form-side--shortcode">
+            <input
+              value={shortCode}
+              onChange={(e) => setShortCode(e.target.value)}
+              placeholder="自定义短码（可选，4–16 位字母数字及 - _）"
+            />
+          </div>
+          <div className="link-form-side link-form-side--expiry">
+            <label className="form-check expiry-panel-toggle">
               <input
                 type="checkbox"
                 checked={noExpiry}
@@ -134,15 +140,45 @@ export function LinksPage() {
               />
               不设过期时间
             </label>
-            {!noExpiry && (
-              <input
-                type="datetime-local"
-                value={expiresLocal}
-                onChange={(e) => setExpiresLocal(e.target.value)}
-                className="input-datetime"
-              />
+            {noExpiry ? (
+              <p className="expiry-panel-note">永不过期：不写入到期日，链接长期有效</p>
+            ) : (
+              <div className="field-stack expiry-datetime-stack">
+                <span className="field-label">过期时间</span>
+                <div className="form-datetime-pair">
+                  <input
+                    type="date"
+                    value={expiresParts.date}
+                    onChange={(e) =>
+                      setExpiresParts((p) => ({
+                        ...p,
+                        date: e.target.value
+                      }))
+                    }
+                    inputMode="none"
+                    autoComplete="off"
+                    className="input-calendar"
+                    title="点击输入框或右侧图标打开日历"
+                  />
+                  <input
+                    type="time"
+                    step={60}
+                    value={expiresParts.time}
+                    onChange={(e) =>
+                      setExpiresParts((p) => ({
+                        ...p,
+                        time: e.target.value
+                      }))
+                    }
+                    inputMode="none"
+                    autoComplete="off"
+                    className="input-calendar"
+                    title="点击输入框或右侧图标打开时钟"
+                  />
+                </div>
+                <p className="form-hint form-hint-tight">默认过期时间约为 30 天后</p>
+              </div>
             )}
-            <p className="form-hint">取消勾选后使用下方时间，默认预填约 30 天后</p>
           </div>
         </div>
         <label className="form-check">
@@ -197,7 +233,22 @@ export function LinksPage() {
                   <td className="cell-ellipsis" title={i.original_url}>
                     {i.original_url}
                   </td>
-                  <td className="cell-nowrap">{formatExpiresAt(i.expires_at)}</td>
+                  <td>
+                    <div className="cell-expires">
+                      {!i.expires_at || String(i.expires_at).trim() === "" ? (
+                        <span className="expiry-never">永不过期</span>
+                      ) : (
+                        <>
+                          <span>{formatExpiresAtDisplay(i.expires_at)}</span>
+                          {isExpiresAtInPast(i.expires_at) && (
+                            <span className="badge badge-warn" title="当前时间已超过该过期时间">
+                              已过期
+                            </span>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  </td>
                   <td>
                     {i.is_active === false ? (
                       <span className="badge">停用</span>

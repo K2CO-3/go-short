@@ -101,7 +101,7 @@ func (s *AdminService) GetAllUsers(ctx context.Context, page, size int) ([]model
 }
 
 // GetAllLinks 获取全站短链列表（分页，管理员）
-func (s *AdminService) GetAllLinks(ctx context.Context, page, size int) ([]model.Link, int64, error) {
+func (s *AdminService) GetAllLinks(ctx context.Context, page, size int) ([]repository.AdminLinkRow, int64, error) {
 	return s.linkRepository.GetAllLinks(ctx, s.db, page, size)
 }
 

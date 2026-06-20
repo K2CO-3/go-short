@@ -168,19 +168,27 @@ func (h *AdminHandler) GetLinkList(c *gin.Context) {
 	}
 
 	linkResponses := make([]LinkResponse, 0, len(links))
-	for _, link := range links {
+	for _, row := range links {
+		link := row.Link
 		isActive := link.Status
 		createdAt := ""
 		if !link.CreatedAt.IsZero() {
 			createdAt = link.CreatedAt.Format("2006-01-02T15:04:05Z")
 		}
+		var exp *string
+		if link.ExpiresAt != nil {
+			s := link.ExpiresAt.UTC().Format(time.RFC3339)
+			exp = &s
+		}
+		uname := row.CreatorUsername
 		linkResponses = append(linkResponses, LinkResponse{
-			LinkID:      strconv.FormatInt(link.ID, 10),
-			ShortCode:   link.ShortCode,
-			OriginalURL: link.OriginalURL,
-			IsActive:    &isActive,
-			CreatedBy:   link.UserID.String(),
-			CreatedAt:   createdAt,
+			LinkID:          strconv.FormatInt(link.ID, 10),
+			ShortCode:       link.ShortCode,
+			OriginalURL:     link.OriginalURL,
+			IsActive:        &isActive,
+			CreatorUsername: uname,
+			ExpiresAt:       exp,
+			CreatedAt:       createdAt,
 		})
 	}
 
@@ -223,12 +231,12 @@ func (h *AdminHandler) GetAccessLogs(c *gin.Context) {
 		return
 	}
 
-	startTime, err := parseAccessLogTime(req.StartTime)
+	startTime, err := parseAccessLogTimeForFilter(req.StartTime, true)
 	if err != nil {
 		c.JSON(400, ErrInvalidRequest)
 		return
 	}
-	endTime, err := parseAccessLogTime(req.EndTime)
+	endTime, err := parseAccessLogTimeForFilter(req.EndTime, false)
 	if err != nil {
 		c.JSON(400, ErrInvalidRequest)
 		return
@@ -272,7 +280,8 @@ func (h *AdminHandler) GetAccessLogs(c *gin.Context) {
 	c.JSON(200, NewListAccessLogsResponse(resp, len(resp)))
 }
 
-func parseAccessLogTime(raw string) (*time.Time, error) {
+// parseAccessLogTimeForFilter isStart=true：仅日期时取当天 00:00:00 UTC；isStart=false 且仅日期时取当天 23:59:59.999999999 UTC（含整日）。
+func parseAccessLogTimeForFilter(raw string, isStartBoundary bool) (*time.Time, error) {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
 		return nil, nil
@@ -281,7 +290,6 @@ func parseAccessLogTime(raw string) (*time.Time, error) {
 	layouts := []string{
 		time.RFC3339,
 		"2006-01-02 15:04:05",
-		"2006-01-02",
 	}
 	for _, layout := range layouts {
 		t, err := time.Parse(layout, raw)
@@ -289,5 +297,14 @@ func parseAccessLogTime(raw string) (*time.Time, error) {
 			return &t, nil
 		}
 	}
-	return nil, errors.New("invalid time format")
+
+	t, err := time.Parse("2006-01-02", raw)
+	if err != nil {
+		return nil, errors.New("invalid time format")
+	}
+	if isStartBoundary {
+		return &t, nil
+	}
+	end := time.Date(t.Year(), t.Month(), t.Day(), 23, 59, 59, 999999999, time.UTC)
+	return &end, nil
 }

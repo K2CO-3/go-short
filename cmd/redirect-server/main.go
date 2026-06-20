@@ -46,7 +46,7 @@ func main() {
 	linkRepo := postgresql.NewLinkRepository(db)
 	userRepo := postgresql.NewUserRepository(db)
 	accessLogRepo := postgresql.NewAccessLogRepository(db)
-	redisRepo := redis.NewRedisRepository(rdb)
+	redisRepo := redis.NewRedisRepository(rdb, nil)
 
 	// 初始化本地缓存（TTL 5min + LRU 最多 10000 条）
 	localCache := local.NewLocalCache(5*time.Minute, 10*time.Minute, 10000)
@@ -65,19 +65,46 @@ func main() {
 		}
 	}()
 
-	// 订阅 Redis 缓存失效通道，删除/禁用链接时删除本地缓存
+	// Kafka 订阅：缓存失效 + 布隆增量（同一 topic，按 event 区分；每实例独立 group 实现广播）
 	go func() {
-		pubsub := rdb.Subscribe(context.Background(), redis.CacheInvalidateChannel)
-		defer pubsub.Close()
-		ch := pubsub.Channel()
-		for msg := range ch {
-			code := msg.Payload
-			localCache.Delete("short:" + code)
+		groupID := mq.CacheInvalidateConsumerGroupID()
+		reader := mq.NewCacheInvalidateReader(groupID)
+		defer reader.Close()
+		ctx := context.Background()
+		log.Printf("📡 Redirect sync (cache + bloom) Kafka consumer group: %s", groupID)
+		for {
+			msg, err := reader.FetchMessage(ctx)
+			if err != nil {
+				log.Println("redirect sync Kafka read error, retrying in 2s...", err)
+				time.Sleep(2 * time.Second)
+				continue
+			}
+			var payload struct {
+				Code  string `json:"code"`
+				Event string `json:"event"`
+			}
+			if err := json.Unmarshal(msg.Value, &payload); err != nil || payload.Code == "" {
+				log.Printf("redirect sync skip invalid payload: %s err=%v", string(msg.Value), err)
+				_ = reader.CommitMessages(ctx, msg)
+				continue
+			}
+			switch payload.Event {
+			case mq.EventBloomAdd:
+				shortCodeBloom.Add(payload.Code)
+			case mq.EventCacheInvalidate, "":
+				localCache.Delete("short:" + payload.Code)
+			default:
+				log.Printf("redirect sync unknown event %q for code=%s, evicting local cache only", payload.Event, payload.Code)
+				localCache.Delete("short:" + payload.Code)
+			}
+			if err := reader.CommitMessages(ctx, msg); err != nil {
+				log.Println("redirect sync Kafka commit error:", err)
+			}
 		}
 	}()
 
 	// 3. 初始化 Service（redirect 只读，无需 cacheInvalidator）
-	linkService := service.NewLinkService(db, linkRepo, userRepo, accessLogRepo, nil)
+	linkService := service.NewLinkService(db, linkRepo, userRepo, accessLogRepo, nil, nil)
 
 	// 4. 启动 pprof（零埋点，import 即注册，6060 端口）
 	go func() { _ = http.ListenAndServe(":6060", nil) }()

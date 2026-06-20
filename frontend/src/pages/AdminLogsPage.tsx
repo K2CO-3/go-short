@@ -4,6 +4,7 @@ import {
   addDays,
   buildAccessLogTimeParam,
   formatInputDate,
+  formatUtcToShanghai,
   isAccessLogRangeReversed
 } from "../lib/datetime";
 import { getToken } from "../lib/auth";
@@ -27,6 +28,8 @@ export function AdminLogsPage() {
   const [originalURL, setOriginalURL] = useState("");
   const [limit, setLimit] = useState("100");
   const [loading, setLoading] = useState(false);
+  /** 快捷切换时递增，强制时间输入框重新挂载，避免部分浏览器在清空 value 后仍显示旧时刻 */
+  const [presetKey, setPresetKey] = useState(0);
 
   function applyPreset(kind: "today" | "7d" | "30d" | "clear") {
     setError("");
@@ -35,23 +38,28 @@ export function AdminLogsPage() {
       setStartTime("");
       setEndDate("");
       setEndTime("");
+      setPresetKey((k) => k + 1);
       return;
     }
     const today = new Date();
     const todayStr = formatInputDate(today);
+    const dayStart = "00:00";
+    const dayEnd = "23:59";
     if (kind === "today") {
       setStartDate(todayStr);
       setEndDate(todayStr);
-      setStartTime("");
-      setEndTime("");
+      setStartTime(dayStart);
+      setEndTime(dayEnd);
+      setPresetKey((k) => k + 1);
       return;
     }
     const days = kind === "7d" ? -6 : -29;
     const start = formatInputDate(addDays(today, days));
     setStartDate(start);
     setEndDate(todayStr);
-    setStartTime("");
-    setEndTime("");
+    setStartTime(dayStart);
+    setEndTime(dayEnd);
+    setPresetKey((k) => k + 1);
   }
 
   async function query(e: FormEvent) {
@@ -107,7 +115,6 @@ export function AdminLogsPage() {
         <h2>访问日志</h2>
         <p className="page-lead">按条件筛选访问记录</p>
       </header>
-      <p className="hint form-hint-logs">先用「快捷」或手动选开始、结束。需要精确到几点几分时，再点右侧时钟。</p>
       <form className="card card-form" onSubmit={query}>
         <div className="log-presets" role="group" aria-label="快捷选择时间范围">
           <span className="log-presets-label">快捷</span>
@@ -133,13 +140,22 @@ export function AdminLogsPage() {
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
                 aria-label="开始日期"
+                inputMode="none"
+                autoComplete="off"
+                className="input-calendar"
+                title="点击打开日历"
               />
               <input
+                key={`log-start-time-${presetKey}`}
                 type="time"
                 step={60}
                 value={startTime}
                 onChange={(e) => setStartTime(e.target.value)}
                 aria-label="开始时间（选填，需配合日期）"
+                inputMode="none"
+                autoComplete="off"
+                className="input-calendar"
+                title="点击打开时钟"
               />
             </div>
           </div>
@@ -151,13 +167,22 @@ export function AdminLogsPage() {
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
                 aria-label="结束日期"
+                inputMode="none"
+                autoComplete="off"
+                className="input-calendar"
+                title="点击打开日历"
               />
               <input
+                key={`log-end-time-${presetKey}`}
                 type="time"
                 step={60}
                 value={endTime}
                 onChange={(e) => setEndTime(e.target.value)}
                 aria-label="结束时间（选填，需配合日期）"
+                inputMode="none"
+                autoComplete="off"
+                className="input-calendar"
+                title="点击打开时钟"
               />
             </div>
           </div>
@@ -200,7 +225,7 @@ export function AdminLogsPage() {
                 <th>短码</th>
                 <th>IP</th>
                 <th>访问环境</th>
-                <th>访问时间</th>
+                <th title="数据库存 UTC，此处按东八区显示">访问时间 (UTC+8)</th>
               </tr>
             </thead>
             <tbody>
@@ -220,7 +245,9 @@ export function AdminLogsPage() {
                   </td>
                   <td>{l.ip_address}</td>
                   <td className="cell-muted">{l.user_agent}</td>
-                  <td className="cell-nowrap">{l.visited_at}</td>
+                  <td className="cell-nowrap" title={l.visited_at}>
+                    {formatUtcToShanghai(l.visited_at)}
+                  </td>
                 </tr>
               ))}
             </tbody>

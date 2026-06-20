@@ -21,13 +21,14 @@ type UserResponse struct {
 // LinkResponse 链接操作响应
 type LinkResponse struct {
 	BaseResponse
-	LinkID      string `json:"link_id,omitempty"`
-	ShortCode   string `json:"short_code,omitempty"`
-	OriginalURL string `json:"original_url,omitempty"`
-	IsActive    *bool  `json:"is_active,omitempty"`
-	CreatedBy   string `json:"created_by,omitempty"`
-	CreatedAt   string `json:"created_at,omitempty"`
-	UpdatedAt   string `json:"updated_at,omitempty"`
+	LinkID           string  `json:"link_id,omitempty"`
+	ShortCode        string  `json:"short_code,omitempty"`
+	OriginalURL      string  `json:"original_url,omitempty"`
+	IsActive         *bool   `json:"is_active,omitempty"`
+	CreatorUsername  string  `json:"creator_username,omitempty"`
+	ExpiresAt        *string `json:"expires_at,omitempty"`
+	CreatedAt        string  `json:"created_at,omitempty"`
+	UpdatedAt        string  `json:"updated_at,omitempty"`
 }
 
 // ListUsersResponse 用户列表响应

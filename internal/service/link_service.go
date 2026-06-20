@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"go-short/internal/model"
 	"go-short/internal/util"
+	"log"
 	"strings"
 	"time"
 
@@ -104,6 +105,8 @@ func (s *LinkService) CreateLink(ctx context.Context, cmd CreateLinkCommand) (*m
 		}
 	}
 
+	s.notifyBloomForActiveLink(ctx, link)
+
 	return link, nil
 }
 
@@ -163,6 +166,8 @@ func (s *LinkService) SetLinkActive(ctx context.Context, linkID int64, userID uu
 		if err := s.linkRepository.ActiveLink(ctx, s.db, linkID); err != nil {
 			return fmt.Errorf("启用链接失败: %w", err)
 		}
+		link.Status = true
+		s.notifyBloomForActiveLink(ctx, link)
 	} else {
 		if err := s.linkRepository.UnactiveLink(ctx, s.db, linkID); err != nil {
 			return fmt.Errorf("禁用链接失败: %w", err)
@@ -198,4 +203,20 @@ func (s *LinkService) DeleteLink(ctx context.Context, linkID int64, userID uuid.
 		_ = s.cacheInvalidator.InvalidateLink(ctx, shortCode)
 	}
 	return nil
+}
+
+// notifyBloomForActiveLink 将可跳转的短码同步到各 Redirect 的布隆过滤器（经 Kafka 广播；失败只记日志）
+func (s *LinkService) notifyBloomForActiveLink(ctx context.Context, link *model.Link) {
+	if s.redirectNotifier == nil || link == nil || link.ShortCode == "" {
+		return
+	}
+	if !link.Status {
+		return
+	}
+	if link.ExpiresAt != nil && !link.ExpiresAt.After(time.Now()) {
+		return
+	}
+	if err := s.redirectNotifier.NotifyBloomAdd(ctx, link.ShortCode); err != nil {
+		log.Printf("NotifyBloomAdd short_code=%s: %v", link.ShortCode, err)
+	}
 }

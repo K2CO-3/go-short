@@ -32,20 +32,21 @@ VITE_API_BASE_URL=https://localhost/api/v1
 
 ## Nginx 部署模式（推荐外网/内网穿透）
 
-项目已支持把前端构建为静态文件并通过网关 Nginx 统一暴露：
+项目已支持把前端构建为静态文件并通过 **网关 Nginx**（`deploy/nginx`）统一暴露 **HTTPS**：
 
-- `/` -> 前端静态站点
-- `/api/` -> API 服务
-- `/code/` -> Redirect 服务
+- 网关监听 **443**（TLS 证书见 `deploy/nginx/certs/`），**80** 会重定向到 HTTPS
+- 前端容器内仍为 HTTP:80，由网关反向代理；镜像内配置见 `frontend/nginx/default.conf`
+- `/` → 前端静态站点；`/api/` → API；`/code/` → 跳转服务
 
 启动：
 
 ```bash
 cd deploy
+# 若尚无证书：bash nginx/gen-cert.sh
 docker compose up -d --build frontend-service nginx api-service redirect-service
 ```
 
-访问：
+访问（请使用 HTTPS）：
 
-- HTTP: `http://<你的域名或IP>/`
-- HTTPS: `https://<你的域名或IP>/`
+- `https://localhost/` 或 `https://<你的域名或IP>/`
+- 开发用自签名证书时浏览器可能提示风险，可手动继续访问

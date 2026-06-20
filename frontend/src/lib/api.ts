@@ -1,3 +1,4 @@
+import { clearToken } from "./auth";
 import type {
   AdminCreateUserRequest,
   AdminListAccessLogsResponse,
@@ -39,6 +40,10 @@ async function request<T>(
 
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
+    if (res.status === 401 && token) {
+      clearToken();
+      window.location.assign("/login");
+    }
     const err = data as ApiError;
     throw new Error(err.message || err.error || `HTTP ${res.status}`);
   }

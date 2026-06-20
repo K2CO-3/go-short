@@ -9,6 +9,12 @@ import (
 	"gorm.io/gorm"
 )
 
+// AdminLinkRow 全站短链列表行（含创建者用户名，供管理端）
+type AdminLinkRow struct {
+	Link            model.Link
+	CreatorUsername string
+}
+
 type UserRepository interface {
 	Create(ctx context.Context, tx *gorm.DB, user *model.User) error
 	Update(ctx context.Context, tx *gorm.DB, user *model.User) error
@@ -29,7 +35,7 @@ type LinkRepository interface {
 	CheckShortCodeExists(ctx context.Context, tx *gorm.DB, code string) (bool, error)
 	GetLinkByUserAndURL(ctx context.Context, tx *gorm.DB, userID uuid.UUID, originalURL string) (*model.Link, error)
 	GetLinksByUser(ctx context.Context, tx *gorm.DB, userID uuid.UUID, page, size int) ([]model.Link, int64, error)
-	GetAllLinks(ctx context.Context, tx *gorm.DB, page, size int) ([]model.Link, int64, error)
+	GetAllLinks(ctx context.Context, tx *gorm.DB, page, size int) ([]AdminLinkRow, int64, error)
 	GetLinksByUserAlias(ctx context.Context, tx *gorm.DB, userID uuid.UUID, alias string, page, size int) ([]model.Link, int64, error)
 	GetLinkIDByCode(ctx context.Context, tx *gorm.DB, code string) (int64, error)
 	ActiveLink(ctx context.Context, tx *gorm.DB, LinkID int64) error
@@ -58,4 +64,10 @@ type AccessLogQuery struct {
 // CacheInvalidator 缓存失效接口（删除/禁用链接时调用，保证 Redis + 本地缓存一致性）
 type CacheInvalidator interface {
 	InvalidateLink(ctx context.Context, code string) error
+}
+
+// RedirectCacheNotifier 通知 Redirect 节点（Kafka 等）：缓存失效、布隆增量同步
+type RedirectCacheNotifier interface {
+	NotifyInvalidate(ctx context.Context, shortCode string) error
+	NotifyBloomAdd(ctx context.Context, shortCode string) error
 }

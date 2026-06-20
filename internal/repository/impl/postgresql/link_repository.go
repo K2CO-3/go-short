@@ -3,6 +3,7 @@ package postgresql
 import (
 	"context"
 	"go-short/internal/model"
+	"go-short/internal/repository"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -113,12 +114,11 @@ func (d *linkRepoImpl) GetLinksByUser(ctx context.Context, tx *gorm.DB, userID u
 	return links, total, nil
 }
 
-// GetAllLinks 全站链接分页（管理员）
-func (d *linkRepoImpl) GetAllLinks(ctx context.Context, tx *gorm.DB, page, size int) ([]model.Link, int64, error) {
+// GetAllLinks 全站链接分页（管理员）：LEFT JOIN users 取创建者用户名
+func (d *linkRepoImpl) GetAllLinks(ctx context.Context, tx *gorm.DB, page, size int) ([]repository.AdminLinkRow, int64, error) {
 	if tx == nil {
 		tx = d.db
 	}
-	var links []model.Link
 	var total int64
 	offset := (page - 1) * size
 
@@ -127,17 +127,28 @@ func (d *linkRepoImpl) GetAllLinks(ctx context.Context, tx *gorm.DB, page, size 
 		return nil, 0, err
 	}
 
-	if err := tx.WithContext(ctx).
-		Model(&model.Link{}).
-		Select("id, short_code, original_url, alias, user_id, is_custom, visit_count, expires_at, status, created_at").
+	var rows []struct {
+		model.Link
+		Username string `gorm:"column:username"`
+	}
+	if err := tx.WithContext(ctx).Model(&model.Link{}).
+		Select("links.*, users.username AS username").
+		Joins("LEFT JOIN users ON users.id = links.user_id").
+		Order("links.created_at DESC").
 		Offset(offset).
 		Limit(size).
-		Order("created_at DESC").
-		Find(&links).Error; err != nil {
+		Find(&rows).Error; err != nil {
 		return nil, 0, err
 	}
 
-	return links, total, nil
+	out := make([]repository.AdminLinkRow, len(rows))
+	for i := range rows {
+		out[i] = repository.AdminLinkRow{
+			Link:            rows[i].Link,
+			CreatorUsername: rows[i].Username,
+		}
+	}
+	return out, total, nil
 }
 
 // GetLinkIDByCode 根据短码查询链接ID (用于日志查询服务)

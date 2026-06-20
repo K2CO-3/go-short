@@ -897,8 +897,13 @@ components:
             is_active:
               type: boolean
               nullable: true
-            created_by:
+            creator_username:
               type: string
+              description: 创建者登录名
+            expires_at:
+              type: string
+              nullable: true
+              description: 过期时间（RFC3339），无则长期有效
             created_at:
               type: string
             updated_at:

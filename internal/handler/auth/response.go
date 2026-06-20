@@ -79,6 +79,7 @@ var (
 	ErrInvalidRequest     = NewErrorResponse("BAD_REQUEST", "请求无效", "")
 	ErrUserExists         = NewErrorResponse("USER_EXISTS", "用户已存在", "")
 	ErrInvalidCredentials = NewErrorResponse("INVALID_CREDENTIALS", "用户名或密码错误", "")
+	ErrUserDisabled       = NewErrorResponse("USER_DISABLED", "账号已被禁用，无法登录", "")
 
 	// 服务器错误 (5xx) - 系统错误
 	ErrPasswordHash = NewErrorResponse("INTERNAL_ERROR", "系统错误", "")
